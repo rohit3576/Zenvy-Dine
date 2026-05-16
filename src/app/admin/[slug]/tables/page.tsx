@@ -1,0 +1,155 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/providers/AuthProvider";
+import { Table } from "@/types/restaurant";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { QRCodeSVG } from "qrcode.react";
+import { toast } from "sonner";
+import { Plus, Trash2, Download, Printer, Table as TableIcon } from "lucide-react";
+
+export default function TableManagementPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { user } = useAuth();
+  const [tables, setTables] = useState<Table[]>([]);
+  const [newTableNumber, setNewTableNumber] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [slug, setSlug] = useState("");
+
+  useEffect(() => {
+    if (!user?.restaurantId) return;
+
+    const q = query(
+      collection(db, "tables"),
+      where("restaurantId", "==", user.restaurantId)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setTables(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Table[]);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    params.then(({ slug }) => setSlug(slug));
+  }, [params]);
+
+  const handleAddTable = async () => {
+    if (!newTableNumber || !user?.restaurantId) return;
+    setIsAdding(true);
+    try {
+      await addDoc(collection(db, "tables"), {
+        restaurantId: user.restaurantId,
+        number: newTableNumber,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setNewTableNumber("");
+      toast.success("Table added successfully");
+    } catch {
+      toast.error("Failed to add table");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const deleteTable = async (id: string) => {
+    if (confirm("Are you sure you want to delete this table?")) {
+      await deleteDoc(doc(db, "tables", id));
+      toast.success("Table deleted");
+    }
+  };
+
+  const downloadQR = (tableNumber: string) => {
+    const svg = document.getElementById(`qr-${tableNumber}`) as SVGElement | null;
+    if (!svg) return;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+      const pngFile = canvas.toDataURL("image/png");
+      const downloadLink = document.createElement("a");
+      downloadLink.download = `QR-Table-${tableNumber}.png`;
+      downloadLink.href = pngFile;
+      downloadLink.click();
+    };
+    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold flex items-center gap-2">
+          <TableIcon className="w-8 h-8" /> Table Management
+        </h2>
+        <div className="flex gap-2">
+          <Input 
+            placeholder="Table Number (e.g. 10)" 
+            className="w-48"
+            value={newTableNumber}
+            onChange={(e) => setNewTableNumber(e.target.value)}
+          />
+          <Button onClick={handleAddTable} disabled={isAdding}>
+            <Plus className="w-4 h-4 mr-2" /> Add Table
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {tables.map((table) => {
+          const qrUrl = `${window.location.origin}/r/${slug}/table/${table.number}`;
+          return (
+            <Card key={table.id} className="group overflow-hidden">
+              <CardHeader className="bg-muted/30 flex flex-row items-center justify-between py-3">
+                <CardTitle className="text-lg">Table {table.number}</CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => deleteTable(table.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </CardHeader>
+              <CardContent className="p-6 flex flex-col items-center space-y-4">
+                <div className="bg-white p-4 rounded-xl shadow-inner border">
+                  <QRCodeSVG 
+                    id={`qr-${table.number}`}
+                    value={qrUrl} 
+                    size={160}
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+                <div className="flex gap-2 w-full">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 text-xs"
+                    onClick={() => downloadQR(table.number)}
+                  >
+                    <Download className="w-3 h-3 mr-2" /> Download
+                  </Button>
+                  <Button variant="outline" className="text-xs" onClick={() => window.print()}>
+                    <Printer className="w-3 h-3" />
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground break-all text-center">
+                  {qrUrl}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
