@@ -1,5 +1,5 @@
 {
-  "name": "tmp-app",
+  "name": "zenvy-dine",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "validate:env": "node scripts/validate-env.mjs",
-    "seed:demo": "ts-node scripts/seed-demo-data.ts"
+    "seed": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/seed.ts",
+    "seed:demo": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/seed.ts",
+    "reset-db": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/seed.ts --reset"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

@@ -1,0 +1,12 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /restaurants/{restaurantId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null &&
+                   get(/databases/(default)/documents/users/$(request.auth.uid)).data.restaurantId == restaurantId &&
+                   get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['RESTAURANT_OWNER', 'MANAGER'];
+    }
+  }
+}

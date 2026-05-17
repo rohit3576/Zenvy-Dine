@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { OrderReceipt } from "@/components/common/OrderReceipt";
 import { Restaurant } from "@/types/restaurant";
 import { notificationService } from "@/services/notification-service";
+import { demoRestaurant, isDemoRestaurant } from "@/data/demo-restaurant";
 
 export default function LiveOrdersPage() {
   const { user } = useAuth();
@@ -56,7 +57,12 @@ export default function LiveOrdersPage() {
       setOrders(ordersData);
       setLoading(false);
     }, (error) => {
-      console.error("Firestore listener error:", error);
+      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+      console.warn("Firestore listener error:", error instanceof Error ? error.message : error);
       toast.error("Failed to load live orders.");
       setLoading(false);
     });
@@ -67,11 +73,20 @@ export default function LiveOrdersPage() {
   useEffect(() => {
     if (!user?.restaurantId) return;
 
-    getDoc(doc(db, "restaurants", user.restaurantId)).then((snapshot) => {
-      if (snapshot.exists()) {
-        setRestaurant({ id: snapshot.id, ...snapshot.data() } as Restaurant);
-      }
-    });
+    getDoc(doc(db, "restaurants", user.restaurantId))
+      .then((snapshot) => {
+        if (snapshot.exists()) {
+          setRestaurant({ id: snapshot.id, ...snapshot.data() } as Restaurant);
+        }
+      })
+      .catch((error) => {
+        if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+          setRestaurant(demoRestaurant);
+          return;
+        }
+        console.warn("Restaurant load error:", error instanceof Error ? error.message : error);
+        toast.error("Could not load restaurant profile for receipts.");
+      });
   }, [user?.restaurantId]);
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {

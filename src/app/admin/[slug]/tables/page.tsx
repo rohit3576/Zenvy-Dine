@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, del
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
 import { Table } from "@/types/restaurant";
+import { demoTables, isDemoRestaurant } from "@/data/demo-restaurant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
   const [newTableNumber, setNewTableNumber] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [slug, setSlug] = useState("");
+  const [listenerError, setListenerError] = useState<string | null>(null);
+  const isLocalDemo = process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
 
   useEffect(() => {
     if (!user?.restaurantId) return;
@@ -29,6 +32,16 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTables(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Table[]);
+      setListenerError(null);
+    }, (error) => {
+      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+        setTables(demoTables);
+        setListenerError(null);
+        return;
+      }
+      console.warn("Tables listener error:", error instanceof Error ? error.message : error);
+      setListenerError("Could not load tables in realtime. Check Firestore rules.");
+      toast.error("Failed to load tables.");
     });
 
     return () => unsubscribe();
@@ -39,11 +52,28 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
   }, [params]);
 
   const handleAddTable = async () => {
-    if (!newTableNumber || !user?.restaurantId) return;
+    const restaurantId = user?.restaurantId;
+    if (!newTableNumber || !restaurantId) return;
     setIsAdding(true);
     try {
+      if (isLocalDemo) {
+        setTables((current) => [
+          ...current,
+          {
+            id: `local-table-${Date.now()}`,
+            restaurantId,
+            number: newTableNumber,
+            isActive: true,
+            createdAt: demoTables[0].createdAt,
+            updatedAt: demoTables[0].updatedAt,
+          },
+        ]);
+        setNewTableNumber("");
+        toast.success("Table added locally");
+        return;
+      }
       await addDoc(collection(db, "tables"), {
-        restaurantId: user.restaurantId,
+        restaurantId,
         number: newTableNumber,
         isActive: true,
         createdAt: serverTimestamp(),
@@ -60,8 +90,18 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
 
   const deleteTable = async (id: string) => {
     if (confirm("Are you sure you want to delete this table?")) {
-      await deleteDoc(doc(db, "tables", id));
-      toast.success("Table deleted");
+      try {
+        if (isLocalDemo) {
+          setTables((current) => current.filter((table) => table.id !== id));
+          toast.success("Table deleted locally");
+          return;
+        }
+        await deleteDoc(doc(db, "tables", id));
+        toast.success("Table deleted");
+      } catch (error) {
+        console.error("Delete table error:", error);
+        toast.error("Failed to delete table");
+      }
     }
   };
 
@@ -105,6 +145,12 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {listenerError && (
+          <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {listenerError}
+          </div>
+        )}
+
         {tables.map((table) => {
           const qrUrl = `${window.location.origin}/r/${slug}/table/${table.number}`;
           return (
@@ -149,6 +195,12 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
             </Card>
           );
         })}
+
+        {!listenerError && tables.length === 0 && (
+          <div className="col-span-full rounded-xl border-2 border-dashed py-16 text-center text-muted-foreground">
+            No tables yet. Add the first table to generate a QR code.
+          </div>
+        )}
       </div>
     </div>
   );

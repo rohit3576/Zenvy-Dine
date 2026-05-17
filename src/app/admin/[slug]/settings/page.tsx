@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/providers/AuthProvider";
 import { db } from "@/lib/firebase";
+import { demoRestaurant, isDemoRestaurant } from "@/data/demo-restaurant";
 
 export default function RestaurantSettingsPage() {
   const { user } = useAuth();
@@ -18,20 +19,40 @@ export default function RestaurantSettingsPage() {
   const [taxPercentage, setTaxPercentage] = useState("5");
   const [serviceChargePercentage, setServiceChargePercentage] = useState("0");
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const isLocalDemo = process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
 
   useEffect(() => {
     if (!user?.restaurantId) return;
 
-    getDoc(doc(db, "restaurants", user.restaurantId)).then((snapshot) => {
-      const restaurant = snapshot.data();
-      if (!restaurant) return;
+    getDoc(doc(db, "restaurants", user.restaurantId))
+      .then((snapshot) => {
+        const restaurant = snapshot.data();
+        if (!restaurant) {
+          setLoadError("Restaurant settings were not found. Run npm run seed or check the current user restaurantId.");
+          return;
+        }
 
-      setThemeColor(restaurant.settings?.themeColor || "#16a34a");
-      setAccentColor(restaurant.settings?.accentColor || "#f97316");
-      setNotificationPhone(restaurant.settings?.notificationPhone || restaurant.phone || "");
-      setTaxPercentage(String(restaurant.settings?.taxPercentage ?? 5));
-      setServiceChargePercentage(String(restaurant.settings?.serviceChargePercentage ?? 0));
-    });
+        setLoadError(null);
+        setThemeColor(restaurant.settings?.themeColor || "#16a34a");
+        setAccentColor(restaurant.settings?.accentColor || "#f97316");
+        setNotificationPhone(restaurant.settings?.notificationPhone || restaurant.phone || "");
+        setTaxPercentage(String(restaurant.settings?.taxPercentage ?? 5));
+        setServiceChargePercentage(String(restaurant.settings?.serviceChargePercentage ?? 0));
+      })
+      .catch((error) => {
+        if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+          setLoadError(null);
+          setThemeColor(demoRestaurant.settings.themeColor || "#16a34a");
+          setAccentColor(demoRestaurant.settings.accentColor || "#f97316");
+          setNotificationPhone(demoRestaurant.settings.notificationPhone || demoRestaurant.phone);
+          setTaxPercentage(String(demoRestaurant.settings.taxPercentage));
+          setServiceChargePercentage(String(demoRestaurant.settings.serviceChargePercentage));
+          return;
+        }
+        console.warn("Settings load error:", error instanceof Error ? error.message : error);
+        setLoadError("Could not load restaurant settings. Check Firestore permissions.");
+      });
   }, [user?.restaurantId]);
 
   const saveSettings = async () => {
@@ -39,6 +60,10 @@ export default function RestaurantSettingsPage() {
 
     setSaving(true);
     try {
+      if (isLocalDemo) {
+        toast.success("Restaurant settings saved locally.");
+        return;
+      }
       await updateDoc(doc(db, "restaurants", user.restaurantId), {
         "settings.themeColor": themeColor,
         "settings.accentColor": accentColor,
@@ -71,6 +96,11 @@ export default function RestaurantSettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-5 sm:grid-cols-2">
+          {loadError && (
+            <div className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
           <div className="space-y-2">
             <p className="text-sm font-medium">Primary color</p>
             <div className="flex gap-2">

@@ -6,10 +6,19 @@ import * as crypto from "crypto";
 admin.initializeApp();
 const db = admin.firestore();
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
-});
+function getRazorpay() {
+  const keyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!keyId || !keySecret || keyId.startsWith("your_") || keySecret.startsWith("your_")) {
+    throw new functions.https.HttpsError("failed-precondition", "Razorpay keys are not configured");
+  }
+
+  return new Razorpay({
+    key_id: keyId,
+    key_secret: keySecret,
+  });
+}
 
 // 1. Create Razorpay Order
 export const createRazorpayOrder = functions.https.onCall(async (data, context) => {
@@ -27,7 +36,7 @@ export const createRazorpayOrder = functions.https.onCall(async (data, context) 
       receipt,
     };
 
-    const order = await razorpay.orders.create(options);
+    const order = await getRazorpay().orders.create(options);
     
     // Log the payment intent in Firestore
     await db.collection("payments").add({
@@ -48,10 +57,15 @@ export const createRazorpayOrder = functions.https.onCall(async (data, context) 
 // 2. Verify Payment (Manual verification from client)
 export const verifyRazorpayPayment = functions.https.onCall(async (data) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = data;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!keySecret || keySecret.startsWith("your_")) {
+    throw new functions.https.HttpsError("failed-precondition", "Razorpay secret is not configured");
+  }
 
   const body = razorpay_order_id + "|" + razorpay_payment_id;
   const expectedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "")
+    .createHmac("sha256", keySecret)
     .update(body.toString())
     .digest("hex");
 
@@ -73,6 +87,11 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data) => {
 export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET || "";
   const signature = req.headers["x-razorpay-signature"] as string;
+
+  if (!secret) {
+    res.status(500).send("webhook secret not configured");
+    return;
+  }
 
   const expectedSignature = crypto
     .createHmac("sha256", secret)

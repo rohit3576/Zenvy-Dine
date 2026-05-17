@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { demoRestaurant, isDemoRestaurant } from "@/data/demo-restaurant";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { Restaurant } from "@/types/restaurant";
 
@@ -20,14 +21,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 async function getRestaurant(slug: string): Promise<Restaurant | null> {
-  const db = getAdminDb();
-  const snapshot = await db.collection("restaurants")
-    .where("slug", "==", slug)
-    .limit(1)
-    .get();
+  try {
+    const db = getAdminDb();
+    const snapshot = await db.collection("restaurants")
+      .where("slug", "==", slug)
+      .limit(1)
+      .get();
 
-  if (snapshot.empty) return null;
-  return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Restaurant;
+    if (snapshot.empty) return null;
+    return JSON.parse(JSON.stringify({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() })) as Restaurant;
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production" && isDemoRestaurant(slug)) {
+      return JSON.parse(JSON.stringify(demoRestaurant)) as Restaurant;
+    }
+    console.warn("Restaurant layout lookup failed:", error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 export default async function RestaurantLayout({ children, params }: RestaurantLayoutProps) {

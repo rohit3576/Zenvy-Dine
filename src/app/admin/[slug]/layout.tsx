@@ -16,7 +16,7 @@ export default async function AdminLayout({
   const { slug } = await params;
 
   return (
-    <AdminGuard>
+    <AdminGuard slug={slug}>
       <div className="flex min-h-screen bg-muted/20">
         <Sidebar slug={slug} />
         <main className="flex-1 p-8 overflow-y-auto">

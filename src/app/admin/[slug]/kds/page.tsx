@@ -9,10 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, CookingPot } from "lucide-react";
+import { isDemoRestaurant } from "@/data/demo-restaurant";
 
 export default function KDSPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [listenerError, setListenerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.restaurantId) return;
@@ -31,6 +33,16 @@ export default function KDSPage() {
         ...doc.data()
       })) as Order[];
       setOrders(ordersData);
+      setListenerError(null);
+    }, (error) => {
+      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+        setOrders([]);
+        setListenerError(null);
+        return;
+      }
+      console.warn("KDS listener error:", error instanceof Error ? error.message : error);
+      setListenerError("Could not subscribe to kitchen orders. Check Firestore rules and indexes.");
+      toast.error("Kitchen realtime updates failed.");
     });
 
     return () => unsubscribe();
@@ -57,6 +69,12 @@ export default function KDSPage() {
       </div>
 
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-max">
+        {listenerError && (
+          <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {listenerError}
+          </div>
+        )}
+
         {orders.map((order) => (
           <Card key={order.id} className="h-fit border-l-4 border-l-orange-500">
             <CardHeader className="py-3 bg-muted/20">

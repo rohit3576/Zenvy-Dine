@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import CartDrawer from "@/features/cart/components/CartDrawer";
 import { toast } from "sonner";
+import { isDemoRestaurant } from "@/data/demo-restaurant";
 
 interface RestaurantMenuProps {
   restaurant: Restaurant;
@@ -38,8 +39,9 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const description = item.description || "";
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === "all" || item.categoryId === selectedCategory;
       return matchesSearch && matchesCategory;
     });
@@ -54,6 +56,10 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
   const callWaiter = async () => {
     setIsCallingWaiter(true);
     try {
+      if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurant.id)) {
+        toast.success("A waiter has been notified in local demo mode.");
+        return;
+      }
       await addDoc(collection(db, "waiterCalls"), {
         restaurantId: restaurant.id,
         tableNumber: tableId,
@@ -63,7 +69,7 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
       });
       toast.success("A waiter has been notified.");
     } catch (error) {
-      console.error("Waiter call error:", error);
+      console.warn("Waiter call error:", error instanceof Error ? error.message : error);
       toast.error("Could not call a waiter. Please try again.");
     } finally {
       setIsCallingWaiter(false);
@@ -165,7 +171,7 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2 leading-snug">
-                      {item.description}
+                      {item.description || "No description available."}
                     </p>
                     <div className="flex items-center justify-between pt-2">
                       <span className="font-bold text-lg">Rs. {item.price}</span>

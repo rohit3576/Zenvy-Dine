@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getRestaurantBySlug, getCategories, getMenuItems } from "@/services/restaurant-service";
+import { getRestaurantBySlug, getCategories, getMenuItems, getTableByNumber } from "@/services/restaurant-service";
 import RestaurantMenu from "@/features/menu/components/RestaurantMenu";
 import { Restaurant } from "@/types/restaurant";
 import { Category, MenuItem } from "@/types/menu";
@@ -17,7 +17,9 @@ export default async function TableMenuPage({ params }: PageProps) {
   const restaurant = await getRestaurantBySlug(slug) as Restaurant | null;
   if (!restaurant) notFound();
 
-  // Fetch categories and items
+  const table = await getTableByNumber(restaurant.id, tableId);
+  if (!table) notFound();
+
   const [categories, items] = await Promise.all([
     getCategories(restaurant.id),
     getMenuItems(restaurant.id),

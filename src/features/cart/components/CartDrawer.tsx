@@ -12,6 +12,7 @@ import { db } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { isDemoRestaurant } from "@/data/demo-restaurant";
 
 interface CartDrawerProps {
   restaurant: Restaurant;
@@ -26,6 +27,9 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
   const taxAmount = (subtotal() * restaurant.settings.taxPercentage) / 100;
   const serviceCharge = (subtotal() * restaurant.settings.serviceChargePercentage) / 100;
   const grandTotal = subtotal() + taxAmount + serviceCharge;
+  const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+  const isOnlinePaymentConfigured = Boolean(razorpayKey && !razorpayKey.startsWith("your_"));
+  const isLocalDemo = process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurant.id);
 
   const loadRazorpay = () =>
     new Promise<boolean>((resolve) => {
@@ -43,6 +47,16 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
     });
 
   const handlePlaceOrder = async (method: "ONLINE" | "CASH") => {
+    if (items.length === 0) {
+      toast.error("Add at least one item before checkout.");
+      return;
+    }
+
+    if (method === "ONLINE" && !isOnlinePaymentConfigured) {
+      toast.error("Online payments are not configured for this environment.");
+      return;
+    }
+
     setIsPlacingOrder(true);
     try {
       const orderData = {
@@ -60,6 +74,13 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+
+      if (isLocalDemo && method === "CASH") {
+        toast.success("Order placed locally. Please pay at the counter.");
+        clearCart();
+        router.refresh();
+        return;
+      }
 
       const docRef = await addDoc(collection(db, "orders"), orderData);
       
@@ -107,10 +128,15 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
           description: `Table ${tableId} order`,
           order_id: razorpayOrder.id,
           handler: async (payment: Record<string, string>) => {
-            await verifyPayment({ ...payment, orderId: docRef.id });
-            toast.success("Payment received. Your order is in the kitchen.");
-            clearCart();
-            router.refresh();
+            try {
+              await verifyPayment({ ...payment, orderId: docRef.id });
+              toast.success("Payment received. Your order is in the kitchen.");
+              clearCart();
+              router.refresh();
+            } catch (error) {
+              console.error("Payment verification error:", error);
+              toast.error("Payment verification failed. Please contact the counter.");
+            }
           },
           modal: {
             ondismiss: () => toast.info("Payment cancelled. Your order is still pending."),
@@ -127,7 +153,7 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
         router.refresh();
       }
     } catch (error) {
-      console.error("Order error:", error);
+      console.warn("Order error:", error instanceof Error ? error.message : error);
       toast.error("Failed to place order. Please try again.");
     } finally {
       setIsPlacingOrder(false);
@@ -229,8 +255,9 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
             {restaurant.paymentSettings.razorpayEnabled && (
               <Button 
                 className="h-14 rounded-xl flex flex-col items-center justify-center gap-1 bg-primary"
-                disabled={isPlacingOrder}
+                disabled={isPlacingOrder || !isOnlinePaymentConfigured}
                 onClick={() => handlePlaceOrder("ONLINE")}
+                title={!isOnlinePaymentConfigured ? "Set NEXT_PUBLIC_RAZORPAY_KEY_ID to enable online payments" : "Pay online"}
               >
                 <CreditCard className="w-5 h-5" />
                 <span className="text-[10px] font-bold">PAY ONLINE</span>

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
+import { isDemoRestaurant } from "@/data/demo-restaurant";
 
 interface WaiterCall {
   id: string;
@@ -22,6 +23,7 @@ interface WaiterCall {
 export default function WaiterCallsPage() {
   const { user } = useAuth();
   const [calls, setCalls] = useState<WaiterCall[]>([]);
+  const [listenerError, setListenerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.restaurantId) return;
@@ -35,6 +37,16 @@ export default function WaiterCallsPage() {
 
     return onSnapshot(callsQuery, (snapshot) => {
       setCalls(snapshot.docs.map((call) => ({ id: call.id, ...call.data() })) as WaiterCall[]);
+      setListenerError(null);
+    }, (error) => {
+      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+        setCalls([]);
+        setListenerError(null);
+        return;
+      }
+      console.warn("Waiter calls listener error:", error instanceof Error ? error.message : error);
+      setListenerError("Could not subscribe to waiter calls. Check Firestore rules and indexes.");
+      toast.error("Failed to load waiter calls.");
     });
   }, [user?.restaurantId]);
 
@@ -62,6 +74,12 @@ export default function WaiterCallsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {listenerError && (
+          <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {listenerError}
+          </div>
+        )}
+
         {calls.map((call) => (
           <Card key={call.id} className="border-l-4 border-l-amber-500">
             <CardHeader className="pb-3">
@@ -82,7 +100,7 @@ export default function WaiterCallsPage() {
           </Card>
         ))}
 
-        {calls.length === 0 && (
+        {!listenerError && calls.length === 0 && (
           <div className="col-span-full rounded-xl border-2 border-dashed py-16 text-center text-muted-foreground">
             No active waiter calls.
           </div>
