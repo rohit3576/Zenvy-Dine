@@ -4,8 +4,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const adminRoles = new Set(["SUPER_ADMIN", "RESTAURANT_OWNER", "MANAGER", "KITCHEN_STAFF", "CASHIER"]);
+import { canAccessAdmin } from "@/lib/auth-roles";
 
 export default function AdminGuard({ children, slug }: { children: React.ReactNode; slug: string }) {
   const { user, loading } = useAuth();
@@ -13,9 +12,11 @@ export default function AdminGuard({ children, slug }: { children: React.ReactNo
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.push(`/login?next=/admin/${slug}`);
+    } else if (!loading && user && !canAccessAdmin(user, slug)) {
+      router.push(`/unauthorized?restaurant=${slug}`);
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, slug]);
 
   if (loading) {
     return (
@@ -28,18 +29,7 @@ export default function AdminGuard({ children, slug }: { children: React.ReactNo
 
   if (!user) return null;
 
-  if (!adminRoles.has(user.role) || (user.role !== "SUPER_ADMIN" && user.restaurantId !== slug)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="max-w-md rounded-xl border bg-card p-6 text-center">
-          <h1 className="text-xl font-bold">Access denied</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Your account is not assigned to this restaurant or does not have an admin role.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!canAccessAdmin(user, slug)) return null;
 
   return <>{children}</>;
 }

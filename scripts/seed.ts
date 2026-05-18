@@ -22,6 +22,27 @@ const RESET = process.argv.includes("--reset");
 const RESET_ONLY = process.argv.includes("--reset-only");
 const HELP = process.argv.includes("--help") || process.argv.includes("-h");
 const FORCE_CLIENT = process.argv.includes("--client") || process.env.SEED_MODE === "client";
+const rolePermissions = {
+  OWNER: [
+    "restaurant:read",
+    "restaurant:update",
+    "orders:read",
+    "orders:update",
+    "menu:manage",
+    "tables:manage",
+    "staff:manage",
+    "settings:manage",
+  ],
+  MANAGER: [
+    "restaurant:read",
+    "orders:read",
+    "orders:update",
+    "menu:manage",
+    "tables:manage",
+    "staff:manage",
+  ],
+  STAFF: ["restaurant:read", "orders:read", "orders:update"],
+};
 
 type SeedMenuItem = {
   id: string;
@@ -437,18 +458,20 @@ async function seedDemoData() {
   console.log("Seeded 5 tables");
 
   const users = [
-    { id: "demo-owner", email: "owner@spicegarden.test", role: "RESTAURANT_OWNER", displayName: "Asha Rao" },
+    { id: "demo-owner", email: "owner@spicegarden.test", role: "OWNER", displayName: "Asha Rao" },
     { id: "demo-manager", email: "manager@spicegarden.test", role: "MANAGER", displayName: "Rohan Mehta" },
-    { id: "demo-kitchen", email: "kitchen@spicegarden.test", role: "KITCHEN_STAFF", displayName: "Kitchen Team" },
-    { id: "demo-cashier", email: "cashier@spicegarden.test", role: "CASHIER", displayName: "Cashier Desk" },
+    { id: "demo-kitchen", email: "kitchen@spicegarden.test", role: "STAFF", displayName: "Kitchen Team" },
+    { id: "demo-cashier", email: "cashier@spicegarden.test", role: "STAFF", displayName: "Cashier Desk" },
   ];
 
   for (const user of users) {
     await setDocument("users", user.id, {
+      uid: user.id,
       email: user.email,
       displayName: user.displayName,
       role: user.role,
       restaurantId: DEMO_RESTAURANT_ID,
+      permissions: rolePermissions[user.role as keyof typeof rolePermissions],
       seededBy: "scripts/seed.ts",
       createdAt: now(),
       updatedAt: now(),
@@ -467,6 +490,115 @@ async function seedDemoData() {
     });
   }
   console.log(`Seeded ${users.length} users and restaurantStaff records`);
+
+  const orderItems = [
+    {
+      id: `${DEMO_RESTAURANT_ID}-paneer-butter-masala`,
+      name: "Paneer Butter Masala",
+      price: 390,
+      quantity: 2,
+      addOns: [],
+      totalPrice: 780,
+    },
+    {
+      id: `${DEMO_RESTAURANT_ID}-garlic-naan`,
+      name: "Garlic Butter Naan",
+      price: 90,
+      quantity: 4,
+      addOns: [],
+      totalPrice: 360,
+    },
+  ];
+
+  const sampleOrders = [
+    {
+      id: `${DEMO_RESTAURANT_ID}-order-demo-1`,
+      tableId: `${DEMO_RESTAURANT_ID}-table-1`,
+      tableNumber: "1",
+      items: orderItems,
+      subtotal: 1140,
+      tax: 57,
+      serviceCharge: 28.5,
+      total: 1225.5,
+      status: "CONFIRMED",
+      paymentStatus: "PENDING",
+      paymentMethod: "CASH",
+    },
+    {
+      id: `${DEMO_RESTAURANT_ID}-order-demo-2`,
+      tableId: `${DEMO_RESTAURANT_ID}-table-3`,
+      tableNumber: "3",
+      items: [
+        {
+          id: `${DEMO_RESTAURANT_ID}-chicken-biryani`,
+          name: "Chicken Dum Biryani",
+          price: 420,
+          quantity: 2,
+          addOns: [],
+          totalPrice: 840,
+        },
+      ],
+      subtotal: 840,
+      tax: 42,
+      serviceCharge: 21,
+      total: 903,
+      status: "PREPARING",
+      paymentStatus: "PAID",
+      paymentMethod: "ONLINE",
+      paymentId: "pay_demo_001",
+      razorpayOrderId: "order_demo_001",
+    },
+  ];
+
+  for (const order of sampleOrders) {
+    await setDocument("orders", order.id, {
+      restaurantId: DEMO_RESTAURANT_ID,
+      ...order,
+      seededBy: "scripts/seed.ts",
+      createdAt: now(),
+      updatedAt: now(),
+    });
+  }
+  console.log(`Seeded ${sampleOrders.length} sample orders`);
+
+  await setDocument("payments", `${DEMO_RESTAURANT_ID}-payment-demo-1`, {
+    restaurantId: DEMO_RESTAURANT_ID,
+    orderId: `${DEMO_RESTAURANT_ID}-order-demo-2`,
+    razorpayOrderId: "order_demo_001",
+    paymentId: "pay_demo_001",
+    amount: 903,
+    status: "PAID",
+    seededBy: "scripts/seed.ts",
+    createdAt: now(),
+    updatedAt: now(),
+  });
+
+  await setDocument("waiterCalls", `${DEMO_RESTAURANT_ID}-waiter-call-demo-1`, {
+    restaurantId: DEMO_RESTAURANT_ID,
+    tableNumber: "2",
+    status: "OPEN",
+    seededBy: "scripts/seed.ts",
+    createdAt: now(),
+    updatedAt: now(),
+  });
+
+  await setDocument("analytics", `${DEMO_RESTAURANT_ID}-daily-demo`, {
+    restaurantId: DEMO_RESTAURANT_ID,
+    period: "daily",
+    date: new Date().toISOString().slice(0, 10),
+    revenue: 2128.5,
+    orders: sampleOrders.length,
+    averageOrderValue: 1064.25,
+    topItems: [
+      { name: "Paneer Butter Masala", quantity: 2 },
+      { name: "Garlic Butter Naan", quantity: 4 },
+      { name: "Chicken Dum Biryani", quantity: 2 },
+    ],
+    seededBy: "scripts/seed.ts",
+    createdAt: now(),
+    updatedAt: now(),
+  });
+  console.log("Seeded payments, waiter calls, and analytics samples");
 
   console.log("");
   console.log("Seed complete.");

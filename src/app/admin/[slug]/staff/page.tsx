@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { db } from "@/lib/firebase";
+import { hasPermission, permissionsForRole } from "@/lib/auth-roles";
 import { useAuth } from "@/providers/AuthProvider";
 import { Role } from "@/types";
 import { AdminAlert, AdminEmptyState } from "../_components/AdminState";
@@ -35,7 +36,7 @@ type StaffMember = {
   isActive: boolean;
 };
 
-const roles: Role[] = ["RESTAURANT_OWNER", "MANAGER", "CASHIER", "KITCHEN_STAFF"];
+const roles: Role[] = ["OWNER", "MANAGER", "STAFF"];
 
 function staffIdFromEmail(restaurantId: string, email: string) {
   return `${restaurantId}-${email.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
@@ -80,6 +81,7 @@ export default function StaffManagementPage() {
   }, [staff]);
 
   const isLocalDemo = process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
+  const canManageStaff = hasPermission(user, "staff:manage");
 
   const inviteStaff = async () => {
     const restaurantId = user?.restaurantId;
@@ -110,10 +112,12 @@ export default function StaffManagementPage() {
 
       await setDoc(doc(db, "restaurantStaff", staffId), payload, { merge: true });
       await setDoc(doc(db, "users", userId), {
+        uid: userId,
         email: payload.email,
         displayName: payload.displayName,
         role: payload.role,
         restaurantId,
+        permissions: permissionsForRole(payload.role),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }, { merge: true });
@@ -141,6 +145,7 @@ export default function StaffManagementPage() {
       });
       await updateDoc(doc(db, "users", member.userId), {
         role,
+        permissions: permissionsForRole(role),
         updatedAt: serverTimestamp(),
       }).catch(() => undefined);
       toast.success("Role updated.");
@@ -191,6 +196,10 @@ export default function StaffManagementPage() {
         <p className="text-muted-foreground">Invite staff, assign roles, and enable or disable access.</p>
       </div>
 
+      {!canManageStaff && (
+        <AdminAlert>Your role can view staff records but cannot manage users.</AdminAlert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Invite Staff</CardTitle>
@@ -204,7 +213,7 @@ export default function StaffManagementPage() {
               {roles.map((role) => <SelectItem key={role} value={role}>{role}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button onClick={inviteStaff} disabled={saving || !inviteForm.email.trim()}>
+          <Button onClick={inviteStaff} disabled={!canManageStaff || saving || !inviteForm.email.trim()}>
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
             Invite
           </Button>
@@ -228,16 +237,16 @@ export default function StaffManagementPage() {
                 </div>
                 <p className="text-sm text-muted-foreground">{member.email}</p>
               </div>
-              <Select value={member.role} onValueChange={(value) => updateRole(member, (value || member.role) as Role)}>
+              <Select value={member.role} onValueChange={(value) => updateRole(member, (value || member.role) as Role)} disabled={!canManageStaff}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {roles.map((role) => <SelectItem key={role} value={role}>{role}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={() => toggleEnabled(member)}>
+              <Button variant="outline" onClick={() => toggleEnabled(member)} disabled={!canManageStaff}>
                 {member.isActive ? "Disable" : "Enable"}
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => removeStaff(member)}>
+              <Button variant="ghost" size="icon" onClick={() => removeStaff(member)} disabled={!canManageStaff}>
                 <Trash2 className="h-4 w-4 text-red-500" />
               </Button>
             </div>

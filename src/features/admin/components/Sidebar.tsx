@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
   Utensils, 
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
+import { clearFirebaseSession } from "@/lib/auth-session";
 
 interface SidebarProps {
   slug: string;
@@ -24,6 +25,7 @@ interface SidebarProps {
 
 export function Sidebar({ slug }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const routes = [
     {
@@ -105,7 +107,11 @@ export function Sidebar({ slug }: SidebarProps) {
         <Button 
           variant="ghost" 
           className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-          onClick={() => signOut(auth)}
+          onClick={async () => {
+            await signOut(auth);
+            clearFirebaseSession();
+            router.replace("/login");
+          }}
         >
           <LogOut className="w-5 h-5 mr-3" />
           Logout

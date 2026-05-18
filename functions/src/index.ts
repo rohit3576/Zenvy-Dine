@@ -20,6 +20,21 @@ function getRazorpay() {
   });
 }
 
+function verifySignature(body: string, signature: string | undefined, secret: string) {
+  if (!signature) return false;
+  const expected = crypto.createHmac("sha256", secret).update(body).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+
+async function findOrderByRazorpayOrderId(razorpayOrderId: string) {
+  const orderQuery = await db.collection("orders")
+    .where("razorpayOrderId", "==", razorpayOrderId)
+    .limit(1)
+    .get();
+
+  return orderQuery.empty ? null : orderQuery.docs[0];
+}
+
 // 1. Create Razorpay Order
 export const createRazorpayOrder = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -30,6 +45,15 @@ export const createRazorpayOrder = functions.https.onCall(async (data, context) 
   const { amount, currency = "INR", receipt, restaurantId } = data;
 
   try {
+    if (!amount || amount <= 0 || !receipt || !restaurantId) {
+      throw new functions.https.HttpsError("invalid-argument", "Invalid payment order payload");
+    }
+
+    const restaurant = await db.collection("restaurants").doc(restaurantId).get();
+    if (!restaurant.exists) {
+      throw new functions.https.HttpsError("not-found", "Restaurant not found");
+    }
+
     const options = {
       amount: Math.round(amount * 100), // amount in smallest currency unit
       currency,
@@ -44,7 +68,9 @@ export const createRazorpayOrder = functions.https.onCall(async (data, context) 
       restaurantId,
       amount,
       status: "PENDING",
+      receipt,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     return { success: true, order };
@@ -63,13 +89,13 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data) => {
     throw new functions.https.HttpsError("failed-precondition", "Razorpay secret is not configured");
   }
 
-  const body = razorpay_order_id + "|" + razorpay_payment_id;
-  const expectedSignature = crypto
-    .createHmac("sha256", keySecret)
-    .update(body.toString())
-    .digest("hex");
+  if (!orderId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    throw new functions.https.HttpsError("invalid-argument", "Missing payment verification fields");
+  }
 
-  if (expectedSignature === razorpay_signature) {
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+  if (verifySignature(body, razorpay_signature, keySecret)) {
     // Payment verified
     await db.collection("orders").doc(orderId).update({
       paymentStatus: "PAID",
@@ -77,8 +103,26 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    const paymentQuery = await db.collection("payments")
+      .where("razorpayOrderId", "==", razorpay_order_id)
+      .limit(1)
+      .get();
+
+    if (!paymentQuery.empty) {
+      await paymentQuery.docs[0].ref.update({
+        status: "PAID",
+        paymentId: razorpay_payment_id,
+        orderId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
     return { success: true };
   } else {
+    await db.collection("orders").doc(orderId).update({
+      paymentStatus: "FAILED",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }).catch(() => undefined);
     throw new functions.https.HttpsError("invalid-argument", "Payment verification failed");
   }
 });
@@ -93,26 +137,17 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
+  const rawBody = JSON.stringify(req.body);
 
-  if (expectedSignature === signature) {
+  if (verifySignature(rawBody, signature, secret)) {
     const event = req.body.event;
     const payload = req.body.payload;
 
     if (event === "payment.captured") {
       const razorpayOrderId = payload.payment.entity.order_id;
-      
-      // Find the order with this razorpayOrderId
-      const orderQuery = await db.collection("orders")
-        .where("razorpayOrderId", "==", razorpayOrderId)
-        .limit(1)
-        .get();
 
-      if (!orderQuery.empty) {
-        const orderDoc = orderQuery.docs[0];
+      const orderDoc = await findOrderByRazorpayOrderId(razorpayOrderId);
+      if (orderDoc) {
         await orderDoc.ref.update({
           paymentStatus: "PAID",
           paymentId: payload.payment.entity.id,
@@ -120,6 +155,26 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
         });
       }
     }
+
+    if (event === "payment.failed") {
+      const razorpayOrderId = payload.payment.entity.order_id;
+      const orderDoc = await findOrderByRazorpayOrderId(razorpayOrderId);
+      if (orderDoc) {
+        await orderDoc.ref.update({
+          paymentStatus: "FAILED",
+          paymentFailureReason: payload.payment.entity.error_description || payload.payment.entity.error_reason || "Payment failed",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    await db.collection("auditLogs").add({
+      source: "razorpayWebhook",
+      event,
+      razorpayEventId: req.body.id || null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     res.status(200).send("ok");
   } else {
     res.status(400).send("invalid signature");
@@ -130,15 +185,14 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
 export const onUserCreated = functions.auth.user().onCreate(async (user) => {
   const { uid, email, displayName, photoURL } = user;
 
-  // Default role is RESTAURANT_OWNER for the first user of a restaurant
-  // In a real SaaS, this would be more complex (e.g., invitation based)
+  // Keep Auth creation separate from authorization. Admin onboarding or staff
+  // invitation flows assign role, restaurantId, and permissions explicitly.
   await db.collection("users").doc(uid).set({
+    uid,
     email,
     displayName,
     photoURL,
-    role: "RESTAURANT_OWNER", // Default role
-    restaurantId: null, // To be linked later
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  }, { merge: true });
 });

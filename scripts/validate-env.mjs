@@ -11,6 +11,7 @@ const required = [
   "NEXT_PUBLIC_FIREBASE_APP_ID",
   "NEXT_PUBLIC_RAZORPAY_KEY_ID",
   "RAZORPAY_KEY_SECRET",
+  "ADMIN_ONBOARDING_CODE",
 ];
 
 const missing = required.filter((name) => !process.env[name]);

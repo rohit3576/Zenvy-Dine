@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import AdminGuard from "@/features/auth/components/AdminGuard";
 import { Sidebar } from "@/features/admin/components/Sidebar";
+import { requireAdminUser } from "@/lib/server-auth";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard - Zenvy Dine",
@@ -14,6 +15,7 @@ export default async function AdminLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminUser(slug);
 
   return (
     <AdminGuard slug={slug}>

@@ -62,7 +62,7 @@ export const demoStaff: DemoStaffMember[] = [
     userId: "demo-owner",
     email: "owner@spicegarden.test",
     displayName: "Aarav Mehta",
-    role: "RESTAURANT_OWNER",
+    role: "OWNER",
     isActive: true,
   },
   {
@@ -80,7 +80,7 @@ export const demoStaff: DemoStaffMember[] = [
     userId: "demo-kitchen",
     email: "kitchen@spicegarden.test",
     displayName: "Imran Khan",
-    role: "KITCHEN_STAFF",
+    role: "STAFF",
     isActive: true,
   },
 ];
