@@ -19,6 +19,7 @@ export interface MenuItem extends BaseEntity {
   isVeg: boolean;
   isBestseller: boolean;
   isAvailable: boolean;
+  available?: boolean;
   addOns: AddOnGroup[];
 }
 

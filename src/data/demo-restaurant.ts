@@ -117,3 +117,7 @@ export const demoMenuItems: MenuItem[] = [
 export function isDemoRestaurant(slugOrId: string) {
   return slugOrId === demoRestaurant.id || slugOrId === demoRestaurant.slug;
 }
+
+export function shouldUseLocalDemoFallback() {
+  return process.env.NEXT_PUBLIC_USE_LOCAL_DEMO_FALLBACK === "true";
+}

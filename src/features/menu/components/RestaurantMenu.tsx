@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Search, Plus, Minus, BellRing } from "lucide-react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Restaurant } from "@/types/restaurant";
 import { Category, MenuItem } from "@/types/menu";
@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import CartDrawer from "@/features/cart/components/CartDrawer";
 import { toast } from "sonner";
-import { isDemoRestaurant } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 interface RestaurantMenuProps {
   restaurant: Restaurant;
@@ -30,12 +30,37 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isCallingWaiter, setIsCallingWaiter] = useState(false);
+  const [latestOrderId, setLatestOrderId] = useState<string | null>(null);
+  const [latestOrderStatus, setLatestOrderStatus] = useState<string | null>(null);
   const { addItem, updateQuantity, items: cartItems, totalItems } = useCartStore();
 
   useEffect(() => {
     if (!restaurant.settings.themeColor) return;
     document.documentElement.style.setProperty("--primary", restaurant.settings.themeColor);
   }, [restaurant.settings.themeColor]);
+
+  useEffect(() => {
+    if (!latestOrderId) return;
+
+    logFirestoreOperation("subscribe", {
+      collection: "orders",
+      queryPath: `orders/${latestOrderId}`,
+      restaurantSlug: restaurant.slug,
+      tableId,
+    });
+
+    return onSnapshot(doc(db, "orders", latestOrderId), (snapshot) => {
+      setLatestOrderStatus(snapshot.exists() ? String(snapshot.data().status || "PENDING") : "UNKNOWN");
+    }, (error) => {
+      logFirestoreError("orders.customerStatus.subscribe", error, {
+        collection: "orders",
+        queryPath: `orders/${latestOrderId}`,
+        restaurantSlug: restaurant.slug,
+        tableId,
+      });
+      toast.error(`Could not subscribe to order status: ${formatFirestoreError(error)}`);
+    });
+  }, [latestOrderId, restaurant.slug, tableId]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -56,10 +81,12 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
   const callWaiter = async () => {
     setIsCallingWaiter(true);
     try {
-      if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurant.id)) {
-        toast.success("A waiter has been notified in local demo mode.");
-        return;
-      }
+      logFirestoreOperation("addDoc", {
+        collection: "waiterCalls",
+        queryPath: "waiterCalls",
+        restaurantSlug: restaurant.slug,
+        tableId,
+      });
       await addDoc(collection(db, "waiterCalls"), {
         restaurantId: restaurant.id,
         restaurantSlug: restaurant.slug,
@@ -70,8 +97,13 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
       });
       toast.success("A waiter has been notified.");
     } catch (error) {
-      console.warn("Waiter call error:", error instanceof Error ? error.message : error);
-      toast.error("Could not call a waiter. Please try again.");
+      logFirestoreError("waiterCalls.addDoc", error, {
+        collection: "waiterCalls",
+        queryPath: "waiterCalls",
+        restaurantSlug: restaurant.slug,
+        tableId,
+      });
+      toast.error(`Could not call a waiter: ${formatFirestoreError(error)}`);
     } finally {
       setIsCallingWaiter(false);
     }
@@ -138,6 +170,12 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
 
       {/* Menu Items */}
       <div className="p-4 space-y-6">
+        {latestOrderStatus && (
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+            Order {latestOrderId} status: <span className="font-bold">{latestOrderStatus}</span>
+          </div>
+        )}
+
         <AnimatePresence mode="popLayout">
           {filteredItems.map((item) => (
             <motion.div
@@ -252,12 +290,12 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
 
       {/* Floating Cart Bar */}
       {totalItems() > 0 && (
-        <div className="fixed bottom-6 left-4 right-4 z-50">
+        <div className="fixed inset-x-4 bottom-16 z-50 mx-auto max-w-md pb-[env(safe-area-inset-bottom)]">
           <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
           >
-            <CartDrawer restaurant={restaurant} tableId={tableId} />
+            <CartDrawer restaurant={restaurant} tableId={tableId} onOrderPlaced={setLatestOrderId} />
           </motion.div>
         </div>
       )}

@@ -45,6 +45,48 @@ async function setDoc(collectionName, documentId, data) {
   }
 }
 
+async function listDocs(collectionName) {
+  const response = await fetch(`${baseUrl}/${collectionName}?pageSize=100&key=${apiKey}`);
+  if (!response.ok) {
+    throw new Error(`${collectionName}: ${response.status} ${await response.text()}`);
+  }
+  const body = await response.json();
+  return body.documents || [];
+}
+
+function firestoreValueToJs(value) {
+  if (!value) return undefined;
+  if ("stringValue" in value) return value.stringValue;
+  if ("booleanValue" in value) return value.booleanValue;
+  if ("integerValue" in value) return Number(value.integerValue);
+  if ("doubleValue" in value) return value.doubleValue;
+  if ("timestampValue" in value) return value.timestampValue;
+  return undefined;
+}
+
+async function repairTableAliases() {
+  const docs = await listDocs("tables");
+  for (const document of docs) {
+    const fields = document.fields || {};
+    const docRestaurant = firestoreValueToJs(fields.restaurantSlug) || firestoreValueToJs(fields.restaurantId);
+    if (docRestaurant !== restaurantSlug) continue;
+    const documentId = document.name.split("/").pop();
+    const tableNumber = String(firestoreValueToJs(fields.tableNumber) || firestoreValueToJs(fields.number) || "");
+    if (!tableNumber) continue;
+    await setDoc("tables", documentId, {
+      restaurantId,
+      restaurantSlug,
+      number: tableNumber,
+      tableNumber,
+      isActive: fields.isActive ? firestoreValueToJs(fields.isActive) : true,
+      active: fields.active ? firestoreValueToJs(fields.active) : true,
+      qrCode: `/r/${restaurantSlug}/table/${tableNumber}`,
+      qrCodeUrl: `/r/${restaurantSlug}/table/${tableNumber}`,
+      updatedAt: now(),
+    });
+  }
+}
+
 const now = () => new Date();
 
 const categories = [
@@ -109,6 +151,7 @@ async function seed() {
       isVeg,
       isBestseller,
       isAvailable: true,
+      available: true,
       addOns: [],
       createdAt: now(),
       updatedAt: now(),
@@ -120,8 +163,11 @@ async function seed() {
       restaurantId,
       restaurantSlug,
       number: String(tableNumber),
+      tableNumber: String(tableNumber),
       capacity: tableNumber <= 2 ? 2 : 4,
       isActive: true,
+      active: true,
+      qrCode: `/r/${restaurantSlug}/table/${tableNumber}`,
       qrCodeUrl: `/r/${restaurantSlug}/table/${tableNumber}`,
       createdAt: now(),
       updatedAt: now(),
@@ -131,7 +177,7 @@ async function seed() {
   await setDoc("orders", `${restaurantId}-order-demo-1`, {
     restaurantId,
     restaurantSlug,
-    tableId: `${restaurantId}-table-1`,
+    tableId: "1",
     tableNumber: "1",
     items: [
       { id: `${restaurantId}-item-3`, name: "Paneer Butter Masala", price: 390, quantity: 1, addOns: [], totalPrice: 390 },
@@ -183,6 +229,8 @@ async function seed() {
     createdAt: now(),
     updatedAt: now(),
   });
+
+  await repairTableAliases();
 }
 
 seed()

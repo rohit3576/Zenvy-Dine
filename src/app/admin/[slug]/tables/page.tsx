@@ -5,7 +5,8 @@ import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, del
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
 import { Table } from "@/types/restaurant";
-import { demoTables, isDemoRestaurant } from "@/data/demo-restaurant";
+import { demoTables, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +21,19 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
   const [isAdding, setIsAdding] = useState(false);
   const [slug, setSlug] = useState("");
   const [listenerError, setListenerError] = useState<string | null>(null);
-  const isLocalDemo = process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
+  const isLocalDemo = shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
 
   useEffect(() => {
     if (!user?.restaurantId) return;
+
+    logFirestoreOperation("subscribe", {
+      collection: "tables",
+      constraints: ["restaurantSlug == value"],
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+      queryPath: "tables",
+    });
 
     const q = query(
       collection(db, "tables"),
@@ -34,14 +44,18 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
       setTables(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Table[]);
       setListenerError(null);
     }, (error) => {
-      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+      if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
         setTables(demoTables);
         setListenerError(null);
         return;
       }
-      console.warn("Tables listener error:", error instanceof Error ? error.message : error);
-      setListenerError("Could not load tables in realtime. Check Firestore rules.");
-      toast.error("Failed to load tables.");
+      logFirestoreError("tables.subscribe", error, {
+        collection: "tables",
+        restaurantSlug: user.restaurantId,
+        queryPath: "tables",
+      });
+      setListenerError(`Could not load tables in realtime: ${formatFirestoreError(error)}`);
+      toast.error(`Failed to load tables: ${formatFirestoreError(error)}`);
     });
 
     return () => unsubscribe();
@@ -73,18 +87,33 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
         toast.success("Table added locally");
         return;
       }
+      logFirestoreOperation("addDoc", {
+        collection: "tables",
+        restaurantSlug: restaurantId,
+        tableId: newTableNumber,
+        queryPath: "tables",
+      });
       await addDoc(collection(db, "tables"), {
         restaurantId,
         restaurantSlug: restaurantId,
         number: newTableNumber,
+        tableNumber: newTableNumber,
         isActive: true,
+        active: true,
+        qrCode: `/r/${restaurantId}/table/${newTableNumber}`,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
       setNewTableNumber("");
       toast.success("Table added successfully");
-    } catch {
-      toast.error("Failed to add table");
+    } catch (error) {
+      logFirestoreError("tables.addDoc", error, {
+        collection: "tables",
+        restaurantSlug: restaurantId,
+        tableId: newTableNumber,
+        queryPath: "tables",
+      });
+      toast.error(`Failed to add table: ${formatFirestoreError(error)}`);
     } finally {
       setIsAdding(false);
     }
@@ -98,11 +127,20 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
           toast.success("Table deleted locally");
           return;
         }
+        logFirestoreOperation("deleteDoc", {
+          collection: "tables",
+          queryPath: `tables/${id}`,
+          restaurantSlug: user?.restaurantId,
+        });
         await deleteDoc(doc(db, "tables", id));
         toast.success("Table deleted");
       } catch (error) {
-        console.error("Delete table error:", error);
-        toast.error("Failed to delete table");
+        logFirestoreError("tables.deleteDoc", error, {
+          collection: "tables",
+          queryPath: `tables/${id}`,
+          restaurantSlug: user?.restaurantId,
+        });
+        toast.error(`Failed to delete table: ${formatFirestoreError(error)}`);
       }
     }
   };

@@ -95,6 +95,7 @@ async function seedDemoData() {
       isVeg,
       isBestseller,
       isAvailable: true,
+      available: true,
       addOns: [
         {
           id: "spice-level",
@@ -118,8 +119,11 @@ async function seedDemoData() {
       restaurantId,
       restaurantSlug,
       number: String(tableNumber),
+      tableNumber: String(tableNumber),
       capacity: tableNumber <= 4 ? 2 : tableNumber <= 8 ? 4 : 6,
       isActive: true,
+      active: true,
+      qrCode: `/r/${restaurantSlug}/table/${tableNumber}`,
       qrCodeUrl: `/r/${restaurantSlug}/table/${tableNumber}`,
       createdAt: timestamp(),
       updatedAt: timestamp(),
@@ -129,7 +133,7 @@ async function seedDemoData() {
   const sampleOrders = [
     {
       id: `${restaurantId}-order-1`,
-      tableId: `${restaurantId}-table-1`,
+      tableId: "1",
       tableNumber: "1",
       items: [
         {
@@ -160,7 +164,7 @@ async function seedDemoData() {
     },
     {
       id: `${restaurantId}-order-2`,
-      tableId: `${restaurantId}-table-3`,
+      tableId: "3",
       tableNumber: "3",
       items: [
         {

@@ -26,7 +26,8 @@ import { db, storage } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
 import { Category, MenuItem } from "@/types/menu";
 import { AdminAlert, AdminEmptyState } from "../_components/AdminState";
-import { demoCategories, demoMenuItems, isDemoRestaurant } from "@/data/demo-restaurant";
+import { demoCategories, demoMenuItems, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 const defaultCategory = "none";
 
@@ -53,6 +54,15 @@ export default function MenuManagementPage() {
   useEffect(() => {
     if (!user?.restaurantId) return;
 
+    logFirestoreOperation("subscribe", {
+      collection: "menuCategories",
+      constraints: ["restaurantSlug == value", "orderBy order asc"],
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+      queryPath: "menuCategories",
+    });
+
     const categoryQuery = query(
       collection(db, "menuCategories"),
       where("restaurantSlug", "==", user.restaurantId),
@@ -63,19 +73,32 @@ export default function MenuManagementPage() {
       setCategories(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })) as Category[]);
       setCategoryError(null);
     }, (error) => {
-      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+      if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
         setCategories(demoCategories);
         setCategoryError(null);
         return;
       }
-      console.warn("Menu categories listener error:", error instanceof Error ? error.message : error);
-      setCategoryError("Could not subscribe to menu categories. Check Firestore rules and indexes.");
-      toast.error("Failed to load menu categories.");
+      logFirestoreError("menuCategories.subscribe", error, {
+        collection: "menuCategories",
+        restaurantSlug: user.restaurantId,
+        queryPath: "menuCategories",
+      });
+      setCategoryError(`Could not subscribe to menu categories: ${formatFirestoreError(error)}`);
+      toast.error(`Failed to load menu categories: ${formatFirestoreError(error)}`);
     });
-  }, [user?.restaurantId]);
+  }, [user?.restaurantId, user?.role, user?.uid]);
 
   useEffect(() => {
     if (!user?.restaurantId) return;
+
+    logFirestoreOperation("subscribe", {
+      collection: "menuItems",
+      constraints: ["restaurantSlug == value"],
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+      queryPath: "menuItems",
+    });
 
     const itemQuery = query(
       collection(db, "menuItems"),
@@ -86,16 +109,20 @@ export default function MenuManagementPage() {
       setItems(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })) as MenuItem[]);
       setItemError(null);
     }, (error) => {
-      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+      if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
         setItems(demoMenuItems);
         setItemError(null);
         return;
       }
-      console.warn("Menu items listener error:", error instanceof Error ? error.message : error);
-      setItemError("Could not subscribe to menu items. Check Firestore rules.");
-      toast.error("Failed to load menu items.");
+      logFirestoreError("menuItems.subscribe", error, {
+        collection: "menuItems",
+        restaurantSlug: user.restaurantId,
+        queryPath: "menuItems",
+      });
+      setItemError(`Could not subscribe to menu items: ${formatFirestoreError(error)}`);
+      toast.error(`Failed to load menu items: ${formatFirestoreError(error)}`);
     });
-  }, [user?.restaurantId]);
+  }, [user?.restaurantId, user?.role, user?.uid]);
 
   const categoryNameById = useMemo(() => {
     return new Map(categories.map((category) => [category.id, category.name]));
@@ -105,7 +132,7 @@ export default function MenuManagementPage() {
     return [...items].sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
-  const isLocalDemo = process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
+  const isLocalDemo = shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
 
   const createCategory = async () => {
     const restaurantId = user?.restaurantId;
@@ -130,6 +157,11 @@ export default function MenuManagementPage() {
         toast.success("Category added locally.");
         return;
       }
+      logFirestoreOperation("addDoc", {
+        collection: "menuCategories",
+        restaurantSlug: restaurantId,
+        queryPath: "menuCategories",
+      });
       await addDoc(collection(db, "menuCategories"), {
         restaurantId,
         restaurantSlug: restaurantId,
@@ -142,8 +174,12 @@ export default function MenuManagementPage() {
       setCategoryName("");
       toast.success("Category added.");
     } catch (error) {
-      console.error("Create category error:", error);
-      toast.error("Could not add category.");
+      logFirestoreError("menuCategories.addDoc", error, {
+        collection: "menuCategories",
+        restaurantSlug: restaurantId,
+        queryPath: "menuCategories",
+      });
+      toast.error(`Could not add category: ${formatFirestoreError(error)}`);
     } finally {
       setSavingCategory(false);
     }
@@ -155,13 +191,22 @@ export default function MenuManagementPage() {
         setCategories((current) => current.map((entry) => entry.id === category.id ? { ...entry, isActive: !entry.isActive } : entry));
         return;
       }
+      logFirestoreOperation("updateDoc", {
+        collection: "menuCategories",
+        queryPath: `menuCategories/${category.id}`,
+        restaurantSlug: user?.restaurantId,
+      });
       await updateDoc(doc(db, "menuCategories", category.id), {
         isActive: !category.isActive,
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
-      console.error("Toggle category error:", error);
-      toast.error("Could not update category.");
+      logFirestoreError("menuCategories.updateDoc", error, {
+        collection: "menuCategories",
+        queryPath: `menuCategories/${category.id}`,
+        restaurantSlug: user?.restaurantId,
+      });
+      toast.error(`Could not update category: ${formatFirestoreError(error)}`);
     }
   };
 
@@ -173,11 +218,20 @@ export default function MenuManagementPage() {
         toast.success("Category deleted locally.");
         return;
       }
+      logFirestoreOperation("deleteDoc", {
+        collection: "menuCategories",
+        queryPath: `menuCategories/${categoryId}`,
+        restaurantSlug: user?.restaurantId,
+      });
       await deleteDoc(doc(db, "menuCategories", categoryId));
       toast.success("Category deleted.");
     } catch (error) {
-      console.error("Delete category error:", error);
-      toast.error("Could not delete category.");
+      logFirestoreError("menuCategories.deleteDoc", error, {
+        collection: "menuCategories",
+        queryPath: `menuCategories/${categoryId}`,
+        restaurantSlug: user?.restaurantId,
+      });
+      toast.error(`Could not delete category: ${formatFirestoreError(error)}`);
     }
   };
 
@@ -241,6 +295,11 @@ export default function MenuManagementPage() {
         toast.success("Menu item added locally.");
         return;
       }
+      logFirestoreOperation("addDoc", {
+        collection: "menuItems",
+        restaurantSlug: restaurantId,
+        queryPath: "menuItems",
+      });
       await addDoc(collection(db, "menuItems"), {
         restaurantId,
         restaurantSlug: restaurantId,
@@ -267,8 +326,12 @@ export default function MenuManagementPage() {
       });
       toast.success("Menu item added.");
     } catch (error) {
-      console.error("Create item error:", error);
-      toast.error("Could not add menu item.");
+      logFirestoreError("menuItems.addDoc", error, {
+        collection: "menuItems",
+        restaurantSlug: restaurantId,
+        queryPath: "menuItems",
+      });
+      toast.error(`Could not add menu item: ${formatFirestoreError(error)}`);
     } finally {
       setSavingItem(false);
     }
@@ -280,13 +343,24 @@ export default function MenuManagementPage() {
         setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, [field]: !entry[field] } : entry));
         return;
       }
+      logFirestoreOperation("updateDoc", {
+        collection: "menuItems",
+        queryPath: `menuItems/${item.id}`,
+        restaurantSlug: user?.restaurantId,
+        field,
+      });
       await updateDoc(doc(db, "menuItems", item.id), {
         [field]: !item[field],
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
-      console.error("Toggle item error:", error);
-      toast.error("Could not update menu item.");
+      logFirestoreError("menuItems.updateDoc", error, {
+        collection: "menuItems",
+        queryPath: `menuItems/${item.id}`,
+        restaurantSlug: user?.restaurantId,
+        field,
+      });
+      toast.error(`Could not update menu item: ${formatFirestoreError(error)}`);
     }
   };
 
@@ -298,11 +372,20 @@ export default function MenuManagementPage() {
         toast.success("Menu item deleted locally.");
         return;
       }
+      logFirestoreOperation("deleteDoc", {
+        collection: "menuItems",
+        queryPath: `menuItems/${itemId}`,
+        restaurantSlug: user?.restaurantId,
+      });
       await deleteDoc(doc(db, "menuItems", itemId));
       toast.success("Menu item deleted.");
     } catch (error) {
-      console.error("Delete item error:", error);
-      toast.error("Could not delete menu item.");
+      logFirestoreError("menuItems.deleteDoc", error, {
+        collection: "menuItems",
+        queryPath: `menuItems/${itemId}`,
+        restaurantSlug: user?.restaurantId,
+      });
+      toast.error(`Could not delete menu item: ${formatFirestoreError(error)}`);
     }
   };
 

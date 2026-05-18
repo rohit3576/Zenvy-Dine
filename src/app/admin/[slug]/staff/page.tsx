@@ -24,7 +24,8 @@ import { hasPermission, permissionsForRole } from "@/lib/auth-roles";
 import { useAuth } from "@/providers/AuthProvider";
 import { Role } from "@/types";
 import { AdminAlert, AdminEmptyState } from "../_components/AdminState";
-import { demoStaff, isDemoRestaurant } from "@/data/demo-restaurant";
+import { demoStaff, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 type StaffMember = {
   id: string;
@@ -57,6 +58,15 @@ export default function StaffManagementPage() {
   useEffect(() => {
     if (!user?.restaurantId) return;
 
+    logFirestoreOperation("subscribe", {
+      collection: "restaurantStaff",
+      constraints: ["restaurantSlug == value"],
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+      queryPath: "restaurantStaff",
+    });
+
     const staffQuery = query(
       collection(db, "restaurantStaff"),
       where("restaurantSlug", "==", user.restaurantId)
@@ -66,22 +76,26 @@ export default function StaffManagementPage() {
       setStaff(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })) as StaffMember[]);
       setListenerError(null);
     }, (error) => {
-      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+      if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
         setStaff(demoStaff);
         setListenerError(null);
         return;
       }
-      console.warn("Staff listener error:", error instanceof Error ? error.message : error);
-      setListenerError("Could not subscribe to staff records. Check Firestore rules.");
-      toast.error("Failed to load staff.");
+      logFirestoreError("restaurantStaff.subscribe", error, {
+        collection: "restaurantStaff",
+        restaurantSlug: user.restaurantId,
+        queryPath: "restaurantStaff",
+      });
+      setListenerError(`Could not subscribe to staff records: ${formatFirestoreError(error)}`);
+      toast.error(`Failed to load staff: ${formatFirestoreError(error)}`);
     });
-  }, [user?.restaurantId]);
+  }, [user?.restaurantId, user?.role, user?.uid]);
 
   const sortedStaff = useMemo(() => {
     return [...staff].sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [staff]);
 
-  const isLocalDemo = process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
+  const isLocalDemo = shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
   const canManageStaff = hasPermission(user, "staff:manage");
 
   const inviteStaff = async () => {
@@ -112,7 +126,17 @@ export default function StaffManagementPage() {
         return;
       }
 
+      logFirestoreOperation("setDoc", {
+        collection: "restaurantStaff",
+        queryPath: `restaurantStaff/${staffId}`,
+        restaurantSlug: restaurantId,
+      });
       await setDoc(doc(db, "restaurantStaff", staffId), payload, { merge: true });
+      logFirestoreOperation("setDoc", {
+        collection: "users",
+        queryPath: `users/${userId}`,
+        restaurantSlug: restaurantId,
+      });
       await setDoc(doc(db, "users", userId), {
         uid: userId,
         email: payload.email,
@@ -128,8 +152,11 @@ export default function StaffManagementPage() {
       setInviteForm({ displayName: "", email: "", role: "MANAGER" });
       toast.success("Staff invite record created.");
     } catch (error) {
-      console.error("Invite staff error:", error);
-      toast.error("Could not create staff invite.");
+      logFirestoreError("restaurantStaff.setDoc", error, {
+        collection: "restaurantStaff/users",
+        restaurantSlug: restaurantId,
+      });
+      toast.error(`Could not create staff invite: ${formatFirestoreError(error)}`);
     } finally {
       setSaving(false);
     }
@@ -142,6 +169,12 @@ export default function StaffManagementPage() {
         toast.success("Role updated locally.");
         return;
       }
+      logFirestoreOperation("updateDoc", {
+        collection: "restaurantStaff",
+        queryPath: `restaurantStaff/${member.id}`,
+        restaurantSlug: user?.restaurantId,
+        role,
+      });
       await updateDoc(doc(db, "restaurantStaff", member.id), {
         role,
         updatedAt: serverTimestamp(),
@@ -153,8 +186,13 @@ export default function StaffManagementPage() {
       }).catch(() => undefined);
       toast.success("Role updated.");
     } catch (error) {
-      console.error("Role update error:", error);
-      toast.error("Could not update role.");
+      logFirestoreError("restaurantStaff.updateRole", error, {
+        collection: "restaurantStaff/users",
+        queryPath: `restaurantStaff/${member.id}`,
+        restaurantSlug: user?.restaurantId,
+        role,
+      });
+      toast.error(`Could not update role: ${formatFirestoreError(error)}`);
     }
   };
 
@@ -165,14 +203,23 @@ export default function StaffManagementPage() {
         toast.success(member.isActive ? "Staff disabled locally." : "Staff enabled locally.");
         return;
       }
+      logFirestoreOperation("updateDoc", {
+        collection: "restaurantStaff",
+        queryPath: `restaurantStaff/${member.id}`,
+        restaurantSlug: user?.restaurantId,
+      });
       await updateDoc(doc(db, "restaurantStaff", member.id), {
         isActive: !member.isActive,
         updatedAt: serverTimestamp(),
       });
       toast.success(member.isActive ? "Staff disabled." : "Staff enabled.");
     } catch (error) {
-      console.error("Staff toggle error:", error);
-      toast.error("Could not update staff status.");
+      logFirestoreError("restaurantStaff.toggle", error, {
+        collection: "restaurantStaff",
+        queryPath: `restaurantStaff/${member.id}`,
+        restaurantSlug: user?.restaurantId,
+      });
+      toast.error(`Could not update staff status: ${formatFirestoreError(error)}`);
     }
   };
 
@@ -184,11 +231,20 @@ export default function StaffManagementPage() {
         toast.success("Staff member removed locally.");
         return;
       }
+      logFirestoreOperation("deleteDoc", {
+        collection: "restaurantStaff",
+        queryPath: `restaurantStaff/${member.id}`,
+        restaurantSlug: user?.restaurantId,
+      });
       await deleteDoc(doc(db, "restaurantStaff", member.id));
       toast.success("Staff member removed.");
     } catch (error) {
-      console.error("Remove staff error:", error);
-      toast.error("Could not remove staff member.");
+      logFirestoreError("restaurantStaff.deleteDoc", error, {
+        collection: "restaurantStaff",
+        queryPath: `restaurantStaff/${member.id}`,
+        restaurantSlug: user?.restaurantId,
+      });
+      toast.error(`Could not remove staff member: ${formatFirestoreError(error)}`);
     }
   };
 

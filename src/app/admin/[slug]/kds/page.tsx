@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, CookingPot } from "lucide-react";
-import { isDemoRestaurant } from "@/data/demo-restaurant";
+import { isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 export default function KDSPage() {
   const { user } = useAuth();
@@ -18,6 +19,15 @@ export default function KDSPage() {
 
   useEffect(() => {
     if (!user?.restaurantId) return;
+
+    logFirestoreOperation("subscribe", {
+      collection: "orders",
+      constraints: ["restaurantSlug == value", "status in CONFIRMED/PREPARING", "orderBy createdAt asc"],
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+      queryPath: "orders",
+    });
 
     // KDS typically shows orders that are CONFIRMED or PREPARING
     const q = query(
@@ -35,14 +45,18 @@ export default function KDSPage() {
       setOrders(ordersData);
       setListenerError(null);
     }, (error) => {
-      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+      if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
         setOrders([]);
         setListenerError(null);
         return;
       }
-      console.warn("KDS listener error:", error instanceof Error ? error.message : error);
-      setListenerError("Could not subscribe to kitchen orders. Check Firestore rules and indexes.");
-      toast.error("Kitchen realtime updates failed.");
+      logFirestoreError("orders.kds.subscribe", error, {
+        collection: "orders",
+        restaurantSlug: user.restaurantId,
+        queryPath: "orders",
+      });
+      setListenerError(`Could not subscribe to kitchen orders: ${formatFirestoreError(error)}`);
+      toast.error(`Kitchen realtime updates failed: ${formatFirestoreError(error)}`);
     });
 
     return () => unsubscribe();
@@ -50,10 +64,22 @@ export default function KDSPage() {
 
   const setStatus = async (orderId: string, status: string) => {
     try {
+      logFirestoreOperation("updateDoc", {
+        collection: "orders",
+        queryPath: `orders/${orderId}`,
+        restaurantSlug: user?.restaurantId,
+        status,
+      });
       await updateDoc(doc(db, "orders", orderId), { status, updatedAt: new Date() });
       toast.success(`Order marked as ${status.toLowerCase()}`);
-    } catch {
-      toast.error("Failed to update KDS.");
+    } catch (error) {
+      logFirestoreError("orders.kds.updateDoc", error, {
+        collection: "orders",
+        queryPath: `orders/${orderId}`,
+        restaurantSlug: user?.restaurantId,
+        status,
+      });
+      toast.error(`Failed to update KDS: ${formatFirestoreError(error)}`);
     }
   };
 

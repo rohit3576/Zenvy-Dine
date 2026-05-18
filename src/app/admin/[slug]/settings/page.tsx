@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/providers/AuthProvider";
 import { db } from "@/lib/firebase";
-import { demoRestaurant, isDemoRestaurant } from "@/data/demo-restaurant";
+import { demoRestaurant, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 export default function RestaurantSettingsPage() {
   const { user } = useAuth();
@@ -20,10 +21,18 @@ export default function RestaurantSettingsPage() {
   const [serviceChargePercentage, setServiceChargePercentage] = useState("0");
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const isLocalDemo = process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
+  const isLocalDemo = shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && !!user?.restaurantId && isDemoRestaurant(user.restaurantId);
 
   useEffect(() => {
     if (!user?.restaurantId) return;
+
+    logFirestoreOperation("getDoc", {
+      collection: "restaurants",
+      queryPath: `restaurants/${user.restaurantId}`,
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+    });
 
     getDoc(doc(db, "restaurants", user.restaurantId))
       .then((snapshot) => {
@@ -41,7 +50,7 @@ export default function RestaurantSettingsPage() {
         setServiceChargePercentage(String(restaurant.settings?.serviceChargePercentage ?? 0));
       })
       .catch((error) => {
-        if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+        if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
           setLoadError(null);
           setThemeColor(demoRestaurant.settings.themeColor || "#16a34a");
           setAccentColor(demoRestaurant.settings.accentColor || "#f97316");
@@ -50,10 +59,14 @@ export default function RestaurantSettingsPage() {
           setServiceChargePercentage(String(demoRestaurant.settings.serviceChargePercentage));
           return;
         }
-        console.warn("Settings load error:", error instanceof Error ? error.message : error);
-        setLoadError("Could not load restaurant settings. Check Firestore permissions.");
+        logFirestoreError("restaurants.settings.getDoc", error, {
+          collection: "restaurants",
+          queryPath: `restaurants/${user.restaurantId}`,
+          restaurantSlug: user.restaurantId,
+        });
+        setLoadError(`Could not load restaurant settings: ${formatFirestoreError(error)}`);
       });
-  }, [user?.restaurantId]);
+  }, [user?.restaurantId, user?.role, user?.uid]);
 
   const saveSettings = async () => {
     if (!user?.restaurantId) return;
@@ -64,6 +77,11 @@ export default function RestaurantSettingsPage() {
         toast.success("Restaurant settings saved locally.");
         return;
       }
+      logFirestoreOperation("updateDoc", {
+        collection: "restaurants",
+        queryPath: `restaurants/${user.restaurantId}`,
+        restaurantSlug: user.restaurantId,
+      });
       await updateDoc(doc(db, "restaurants", user.restaurantId), {
         "settings.themeColor": themeColor,
         "settings.accentColor": accentColor,
@@ -74,8 +92,12 @@ export default function RestaurantSettingsPage() {
       });
       toast.success("Restaurant settings saved.");
     } catch (error) {
-      console.error("Settings update error:", error);
-      toast.error("Could not save settings.");
+      logFirestoreError("restaurants.settings.updateDoc", error, {
+        collection: "restaurants",
+        queryPath: `restaurants/${user.restaurantId}`,
+        restaurantSlug: user.restaurantId,
+      });
+      toast.error(`Could not save settings: ${formatFirestoreError(error)}`);
     } finally {
       setSaving(false);
     }

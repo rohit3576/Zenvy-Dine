@@ -31,7 +31,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { OrderReceipt } from "@/components/common/OrderReceipt";
 import { Restaurant } from "@/types/restaurant";
 import { notificationService } from "@/services/notification-service";
-import { demoRestaurant, isDemoRestaurant } from "@/data/demo-restaurant";
+import { demoRestaurant, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 export default function LiveOrdersPage() {
   const { user } = useAuth();
@@ -42,6 +43,15 @@ export default function LiveOrdersPage() {
 
   useEffect(() => {
     if (!user?.restaurantId) return;
+
+    logFirestoreOperation("subscribe", {
+      collection: "orders",
+      constraints: ["restaurantSlug == value", "orderBy createdAt desc"],
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+      queryPath: "orders",
+    });
 
     const q = query(
       collection(db, "orders"),
@@ -57,13 +67,17 @@ export default function LiveOrdersPage() {
       setOrders(ordersData);
       setLoading(false);
     }, (error) => {
-      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+      if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
         setOrders([]);
         setLoading(false);
         return;
       }
-      console.warn("Firestore listener error:", error instanceof Error ? error.message : error);
-      toast.error("Failed to load live orders.");
+      logFirestoreError("orders.subscribe", error, {
+        collection: "orders",
+        restaurantSlug: user.restaurantId,
+        queryPath: "orders",
+      });
+      toast.error(`Failed to load live orders: ${formatFirestoreError(error)}`);
       setLoading(false);
     });
 
@@ -80,12 +94,16 @@ export default function LiveOrdersPage() {
         }
       })
       .catch((error) => {
-        if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+        if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
           setRestaurant(demoRestaurant);
           return;
         }
-        console.warn("Restaurant load error:", error instanceof Error ? error.message : error);
-        toast.error("Could not load restaurant profile for receipts.");
+        logFirestoreError("restaurants.getDoc", error, {
+          collection: "restaurants",
+          queryPath: `restaurants/${user.restaurantId}`,
+          restaurantSlug: user.restaurantId,
+        });
+        toast.error(`Could not load restaurant profile for receipts: ${formatFirestoreError(error)}`);
       });
   }, [user?.restaurantId]);
 
@@ -97,8 +115,13 @@ export default function LiveOrdersPage() {
       });
       toast.success(`Order status updated to ${status}`);
     } catch (error) {
-      console.error("Update error:", error);
-      toast.error("Failed to update status.");
+      logFirestoreError("orders.updateDoc", error, {
+        collection: "orders",
+        queryPath: `orders/${orderId}`,
+        restaurantSlug: user?.restaurantId,
+        status,
+      });
+      toast.error(`Failed to update status: ${formatFirestoreError(error)}`);
     }
   };
 

@@ -12,14 +12,15 @@ import { db } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { collection, addDoc, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { isDemoRestaurant } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 interface CartDrawerProps {
   restaurant: Restaurant;
   tableId: string;
+  onOrderPlaced?: (orderId: string) => void;
 }
 
-export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
+export default function CartDrawer({ restaurant, tableId, onOrderPlaced }: CartDrawerProps) {
   const { items, updateQuantity, clearCart, subtotal, totalItems } = useCartStore();
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const router = useRouter();
@@ -29,7 +30,6 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
   const grandTotal = subtotal() + taxAmount + serviceCharge;
   const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
   const isOnlinePaymentConfigured = Boolean(razorpayKey && !razorpayKey.startsWith("your_"));
-  const isLocalDemo = process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurant.id);
 
   const loadRazorpay = () =>
     new Promise<boolean>((resolve) => {
@@ -76,14 +76,15 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
         updatedAt: serverTimestamp(),
       };
 
-      if (isLocalDemo && method === "CASH") {
-        toast.success("Order placed locally. Please pay at the counter.");
-        clearCart();
-        router.refresh();
-        return;
-      }
-
+      logFirestoreOperation("addDoc", {
+        collection: "orders",
+        queryPath: "orders",
+        restaurantSlug: restaurant.slug,
+        tableId,
+        paymentMethod: method,
+      });
       const docRef = await addDoc(collection(db, "orders"), orderData);
+      onOrderPlaced?.(docRef.id);
       
       if (method === "ONLINE") {
         toast.info("Initializing secure payment...");
@@ -108,6 +109,12 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
           throw new Error("Razorpay order was not returned");
         }
 
+        logFirestoreOperation("updateDoc", {
+          collection: "orders",
+          queryPath: `orders/${docRef.id}`,
+          restaurantSlug: restaurant.slug,
+          field: "razorpayOrderId",
+        });
         await updateDoc(doc(db, "orders", docRef.id), {
           razorpayOrderId: razorpayOrder.id,
           updatedAt: serverTimestamp(),
@@ -155,8 +162,14 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
         router.refresh();
       }
     } catch (error) {
-      console.warn("Order error:", error instanceof Error ? error.message : error);
-      toast.error("Failed to place order. Please try again.");
+      logFirestoreError("orders.addDoc", error, {
+        collection: "orders",
+        queryPath: "orders",
+        restaurantSlug: restaurant.slug,
+        tableId,
+        paymentMethod: method,
+      });
+      toast.error(`Failed to place order: ${formatFirestoreError(error)}`);
     } finally {
       setIsPlacingOrder(false);
     }
@@ -178,7 +191,7 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
             <ShoppingBag className="w-5 h-5" />
           </div>
       </SheetTrigger>
-      <SheetContent side="bottom" className="h-[90vh] rounded-t-[2rem] px-6 pb-10">
+      <SheetContent side="bottom" className="mx-auto h-[90vh] max-h-[720px] max-w-md rounded-t-[2rem] px-6 pb-10">
         <SheetHeader className="pb-6">
           <SheetTitle className="text-2xl font-bold flex items-center gap-2">
             Your Cart <ShoppingBag className="w-5 h-5" />

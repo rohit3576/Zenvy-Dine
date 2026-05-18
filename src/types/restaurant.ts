@@ -30,7 +30,10 @@ export interface Table extends BaseEntity {
   restaurantId: string;
   restaurantSlug?: string;
   number: string;
+  tableNumber?: string;
   capacity?: number;
   isActive: boolean;
+  active?: boolean;
+  qrCode?: string;
   qrCodeUrl?: string;
 }

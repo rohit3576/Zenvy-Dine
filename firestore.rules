@@ -103,6 +103,16 @@ service cloud.firestore {
         && request.resource.data.paymentMethod in ['ONLINE', 'CASH'];
     }
 
+    function isValidPublicOrderItem() {
+      return getRequestedRestaurantSlug() is string
+        && restaurantExists(getRequestedRestaurantSlug())
+        && request.resource.data.orderId is string
+        && request.resource.data.menuItemId is string
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity > 0
+        && request.resource.data.quantity <= 50;
+    }
+
     match /restaurants/{restaurantId} {
       allow read: if true;
       allow create: if isOwner();
@@ -145,11 +155,11 @@ service cloud.firestore {
     }
 
     match /staff/{staffId} {
-      allow read: if isAnyAdmin(resource.data.get('restaurantSlug', resource.data.get('restaurantId', null)));
+      allow read: if isAnyAdmin(getResourceRestaurantSlug());
       allow create: if isOwnerOrManager()
-        && isTenant(request.resource.data.get('restaurantSlug', request.resource.data.get('restaurantId', null)))
+        && isTenant(getRequestedRestaurantSlug())
         && request.resource.data.role in ['OWNER', 'MANAGER', 'STAFF', 'owner', 'admin', 'manager', 'staff'];
-      allow update, delete: if isOwnerOrManager() && isTenant(resource.data.get('restaurantSlug', resource.data.get('restaurantId', null)));
+      allow update, delete: if isOwnerOrManager() && isTenant(getResourceRestaurantSlug());
     }
 
     match /menuCategories/{categoryId} {
@@ -179,7 +189,7 @@ service cloud.firestore {
 
     match /orderItems/{itemId} {
       allow read: if true;
-      allow create: if true;
+      allow create: if isValidPublicOrderItem();
       allow update: if isAnyAdmin(getResourceRestaurantSlug());
       allow delete: if isOwner() && isTenant(getResourceRestaurantSlug());
     }

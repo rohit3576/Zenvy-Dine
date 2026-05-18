@@ -1,5 +1,6 @@
 import { getAdminDb } from "@/lib/firebase-admin";
 import { demoCategories, demoMenuItems, demoRestaurant, demoTables, isDemoRestaurant } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 import { Table } from "@/types/restaurant";
 
 function serializable<T>(value: T): T {
@@ -9,6 +10,7 @@ function serializable<T>(value: T): T {
 export async function getRestaurantBySlug(slug: string) {
   try {
     const db = getAdminDb();
+    logFirestoreOperation("admin.getDoc", { collection: "restaurants", queryPath: `restaurants/${slug}`, restaurantSlug: slug });
     const direct = await db.collection("restaurants").doc(slug).get();
     if (direct.exists) return serializable({ id: direct.id, ...direct.data() });
 
@@ -24,7 +26,8 @@ export async function getRestaurantBySlug(slug: string) {
     return serializable({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
   } catch (error) {
     if (process.env.NODE_ENV !== "production" && isDemoRestaurant(slug)) return serializable(demoRestaurant);
-    console.warn("Restaurant lookup failed:", error instanceof Error ? error.message : error);
+    logFirestoreError("restaurants.admin.lookup", error, { collection: "restaurants", queryPath: `restaurants/${slug}`, restaurantSlug: slug });
+    console.warn("Restaurant lookup failed:", formatFirestoreError(error));
     return null;
   }
 }
@@ -32,6 +35,7 @@ export async function getRestaurantBySlug(slug: string) {
 export async function getCategories(restaurantId: string) {
   try {
     const db = getAdminDb();
+    logFirestoreOperation("admin.query", { collection: "menuCategories", constraints: ["restaurantSlug == value", "isActive == true", "orderBy order asc"], restaurantSlug: restaurantId, queryPath: "menuCategories" });
     let snapshot = await db.collection("menuCategories")
       .where("restaurantSlug", "==", restaurantId)
       .where("isActive", "==", true)
@@ -50,7 +54,8 @@ export async function getCategories(restaurantId: string) {
     return serializable(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   } catch (error) {
     if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurantId)) return serializable(demoCategories);
-    console.warn("Category lookup failed:", error instanceof Error ? error.message : error);
+    logFirestoreError("menuCategories.admin.query", error, { collection: "menuCategories", restaurantSlug: restaurantId, queryPath: "menuCategories" });
+    console.warn("Category lookup failed:", formatFirestoreError(error));
     return [];
   }
 }
@@ -58,6 +63,7 @@ export async function getCategories(restaurantId: string) {
 export async function getMenuItems(restaurantId: string) {
   try {
     const db = getAdminDb();
+    logFirestoreOperation("admin.query", { collection: "menuItems", constraints: ["restaurantSlug == value", "isAvailable == true"], restaurantSlug: restaurantId, queryPath: "menuItems" });
     let snapshot = await db.collection("menuItems")
       .where("restaurantSlug", "==", restaurantId)
       .where("isAvailable", "==", true)
@@ -74,7 +80,8 @@ export async function getMenuItems(restaurantId: string) {
     return serializable(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   } catch (error) {
     if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurantId)) return serializable(demoMenuItems);
-    console.warn("Menu item lookup failed:", error instanceof Error ? error.message : error);
+    logFirestoreError("menuItems.admin.query", error, { collection: "menuItems", restaurantSlug: restaurantId, queryPath: "menuItems" });
+    console.warn("Menu item lookup failed:", formatFirestoreError(error));
     return [];
   }
 }
@@ -82,6 +89,7 @@ export async function getMenuItems(restaurantId: string) {
 export async function getTables(restaurantId: string) {
   try {
     const db = getAdminDb();
+    logFirestoreOperation("admin.query", { collection: "tables", constraints: ["restaurantSlug == value", "isActive == true"], restaurantSlug: restaurantId, queryPath: "tables" });
     let snapshot = await db.collection("tables")
       .where("restaurantSlug", "==", restaurantId)
       .where("isActive", "==", true)
@@ -100,7 +108,8 @@ export async function getTables(restaurantId: string) {
       .sort((a, b) => Number(a.number) - Number(b.number)));
   } catch (error) {
     if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurantId)) return serializable(demoTables);
-    console.warn("Table lookup failed:", error instanceof Error ? error.message : error);
+    logFirestoreError("tables.admin.query", error, { collection: "tables", restaurantSlug: restaurantId, queryPath: "tables" });
+    console.warn("Table lookup failed:", formatFirestoreError(error));
     return [];
   }
 }
@@ -108,6 +117,7 @@ export async function getTables(restaurantId: string) {
 export async function getTableByNumber(restaurantId: string, tableNumber: string) {
   try {
     const db = getAdminDb();
+    logFirestoreOperation("admin.query", { collection: "tables", constraints: ["restaurantSlug == value", "number == value", "isActive == true"], restaurantSlug: restaurantId, tableId: tableNumber, queryPath: "tables" });
     let snapshot = await db.collection("tables")
       .where("restaurantSlug", "==", restaurantId)
       .where("number", "==", tableNumber)
@@ -133,7 +143,8 @@ export async function getTableByNumber(restaurantId: string, tableNumber: string
     if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurantId)) {
       return serializable(demoTables.find((table) => table.number === tableNumber) || null);
     }
-    console.warn("Table lookup by number failed:", error instanceof Error ? error.message : error);
+    logFirestoreError("tables.admin.getByNumber", error, { collection: "tables", restaurantSlug: restaurantId, tableId: tableNumber, queryPath: "tables" });
+    console.warn("Table lookup by number failed:", formatFirestoreError(error));
     return null;
   }
 }

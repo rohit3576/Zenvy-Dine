@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
-import { isDemoRestaurant } from "@/data/demo-restaurant";
+import { isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
+import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
 
 interface WaiterCall {
   id: string;
@@ -29,6 +30,15 @@ export default function WaiterCallsPage() {
   useEffect(() => {
     if (!user?.restaurantId) return;
 
+    logFirestoreOperation("subscribe", {
+      collection: "waiterCalls",
+      constraints: ["restaurantSlug == value", "status in OPEN/ACKNOWLEDGED", "orderBy createdAt desc"],
+      restaurantSlug: user.restaurantId,
+      authUid: user.uid,
+      authRole: user.role,
+      queryPath: "waiterCalls",
+    });
+
     const callsQuery = query(
       collection(db, "waiterCalls"),
       where("restaurantSlug", "==", user.restaurantId),
@@ -40,27 +50,40 @@ export default function WaiterCallsPage() {
       setCalls(snapshot.docs.map((call) => ({ id: call.id, ...call.data() })) as WaiterCall[]);
       setListenerError(null);
     }, (error) => {
-      if (process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
+      if (shouldUseLocalDemoFallback() && process.env.NODE_ENV !== "production" && user.restaurantId && isDemoRestaurant(user.restaurantId)) {
         setCalls([]);
         setListenerError(null);
         return;
       }
-      console.warn("Waiter calls listener error:", error instanceof Error ? error.message : error);
-      setListenerError("Could not subscribe to waiter calls. Check Firestore rules and indexes.");
-      toast.error("Failed to load waiter calls.");
+      logFirestoreError("waiterCalls.subscribe", error, {
+        collection: "waiterCalls",
+        restaurantSlug: user.restaurantId,
+        queryPath: "waiterCalls",
+      });
+      setListenerError(`Could not subscribe to waiter calls: ${formatFirestoreError(error)}`);
+      toast.error(`Failed to load waiter calls: ${formatFirestoreError(error)}`);
     });
-  }, [user?.restaurantId]);
+  }, [user?.restaurantId, user?.role, user?.uid]);
 
   const closeCall = async (callId: string) => {
     try {
+      logFirestoreOperation("updateDoc", {
+        collection: "waiterCalls",
+        queryPath: `waiterCalls/${callId}`,
+        restaurantSlug: user?.restaurantId,
+      });
       await updateDoc(doc(db, "waiterCalls", callId), {
         status: "CLOSED",
         updatedAt: new Date(),
       });
       toast.success("Waiter call closed.");
     } catch (error) {
-      console.error("Waiter call update error:", error);
-      toast.error("Could not close waiter call.");
+      logFirestoreError("waiterCalls.updateDoc", error, {
+        collection: "waiterCalls",
+        queryPath: `waiterCalls/${callId}`,
+        restaurantSlug: user?.restaurantId,
+      });
+      toast.error(`Could not close waiter call: ${formatFirestoreError(error)}`);
     }
   };
 
