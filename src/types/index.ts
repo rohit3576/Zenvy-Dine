@@ -18,6 +18,8 @@ export interface User {
   email: string;
   role: Role;
   restaurantId: string | null;
+  restaurantSlug: string | null;
+  isActive: boolean;
   permissions: Permission[];
   createdAt: Timestamp;
   updatedAt: Timestamp;

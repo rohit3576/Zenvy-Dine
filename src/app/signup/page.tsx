@@ -59,7 +59,7 @@ export default function SignupPage() {
           <Input placeholder="Name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
           <Input placeholder="Owner email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           <Input placeholder="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
-          <Input placeholder="Restaurant ID" value={restaurantId} onChange={(event) => setRestaurantId(event.target.value)} required />
+          <Input placeholder="Restaurant slug" value={restaurantId} onChange={(event) => setRestaurantId(event.target.value)} required />
           <Input placeholder="Onboarding code" type="password" value={onboardingCode} onChange={(event) => setOnboardingCode(event.target.value)} required />
           <Button className="w-full" type="submit" disabled={loading || !email || !password || !restaurantId || !onboardingCode}>
             {loading ? "Creating..." : "Create owner account"}

@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
     displayName: displayName || email,
     role: "OWNER",
     restaurantId,
+    restaurantSlug: restaurantId,
+    isActive: true,
     permissions: permissionsForRole("OWNER"),
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -69,4 +71,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ customToken, restaurantId });
 }
-

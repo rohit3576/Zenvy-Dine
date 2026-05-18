@@ -10,7 +10,8 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { User } from "@/types";
-import { normalizeRole, permissionsForRole } from "@/lib/auth-roles";
+import { normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
+import { authDebug, getFirebaseErrorCode, getFirebaseErrorMessage } from "@/lib/auth-debug";
 import { clearFirebaseSession, persistFirebaseSession } from "@/lib/auth-session";
 
 interface AuthContextType {
@@ -32,36 +33,55 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     void setPersistence(auth, browserLocalPersistence).catch((error) => {
-      console.error("Failed to enable persistent auth sessions", error);
+      console.error("Failed to enable persistent auth sessions", {
+        code: getFirebaseErrorCode(error),
+        message: getFirebaseErrorMessage(error),
+      });
     });
 
     const unsubscribe = onIdTokenChanged(auth, async (fUser) => {
       setFirebaseUser(fUser);
+      authDebug("id token changed", { uid: fUser?.uid ?? null, email: fUser?.email ?? null });
       if (fUser) {
         try {
           await persistFirebaseSession(fUser);
+          authDebug("session cookie refreshed", { uid: fUser.uid });
           const userDoc = await getDoc(doc(db, "users", fUser.uid));
+          authDebug("rbac profile lookup", { uid: fUser.uid, exists: userDoc.exists() });
           if (userDoc.exists()) {
-            const data = userDoc.data();
-            const role = normalizeRole(data.role);
-
-            if (!role) {
-              setUser(null);
-            } else {
-              setUser({
-                id: fUser.uid,
-                uid: fUser.uid,
-                ...data,
-                role,
-                permissions: Array.isArray(data.permissions) ? data.permissions : permissionsForRole(role),
-              } as User);
-            }
+            const profile = normalizeUserProfile(fUser.uid, userDoc.data(), fUser.email ?? "");
+            authDebug("rbac profile normalized", {
+              uid: fUser.uid,
+              role: profile?.role ?? null,
+              restaurantSlug: profile?.restaurantSlug ?? null,
+              isActive: profile?.isActive ?? null,
+            });
+            setUser(profile);
           } else {
             setUser(null);
           }
         } catch (error) {
-          console.error("Failed to load user profile", error);
-          setUser(null);
+          console.error("Failed to load user profile", {
+            code: getFirebaseErrorCode(error),
+            message: getFirebaseErrorMessage(error),
+          });
+          try {
+            const token = await fUser.getIdTokenResult(true);
+            const claimsProfile = profileFromClaims(fUser.uid, token.claims, fUser.email ?? "");
+            authDebug("rbac claims fallback", {
+              uid: fUser.uid,
+              role: claimsProfile?.role ?? null,
+              restaurantSlug: claimsProfile?.restaurantSlug ?? null,
+              isActive: claimsProfile?.isActive ?? null,
+            });
+            setUser(claimsProfile);
+          } catch (claimsError) {
+            console.error("Failed to load RBAC custom claims", {
+              code: getFirebaseErrorCode(claimsError),
+              message: getFirebaseErrorMessage(claimsError),
+            });
+            setUser(null);
+          }
         }
       } else {
         clearFirebaseSession();

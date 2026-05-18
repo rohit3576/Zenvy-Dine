@@ -16,30 +16,49 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { auth, db } from "@/lib/firebase";
-import { normalizeRole } from "@/lib/auth-roles";
+import { normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
+import { authDebug, getFirebaseErrorCode, getFirebaseErrorMessage } from "@/lib/auth-debug";
 import { persistFirebaseSession } from "@/lib/auth-session";
 
 async function getAdminRedirect(firebaseUser: FirebaseUser, requestedNext: string | null) {
+  authDebug("login profile redirect start", { uid: firebaseUser.uid, email: firebaseUser.email });
   await persistFirebaseSession(firebaseUser);
-  const profile = await getDoc(doc(db, "users", firebaseUser.uid));
+  let user = null;
 
-  if (!profile.exists()) {
-    throw new Error("NO_ADMIN_PROFILE");
+  try {
+    const profile = await getDoc(doc(db, "users", firebaseUser.uid));
+    authDebug("login rbac lookup", { uid: firebaseUser.uid, exists: profile.exists() });
+
+    if (!profile.exists()) {
+      throw new Error("NO_ADMIN_PROFILE");
+    }
+
+    user = normalizeUserProfile(firebaseUser.uid, profile.data(), firebaseUser.email ?? "");
+  } catch (error) {
+    authDebug("login rbac lookup failed, trying claims", {
+      code: getFirebaseErrorCode(error),
+      message: getFirebaseErrorMessage(error),
+    });
+    const token = await firebaseUser.getIdTokenResult(true);
+    user = profileFromClaims(firebaseUser.uid, token.claims, firebaseUser.email ?? "");
   }
 
-  const data = profile.data();
-  const role = normalizeRole(data.role);
-  const restaurantId = typeof data.restaurantId === "string" ? data.restaurantId : null;
-
-  if (!role || !restaurantId) {
+  if (!user) {
     throw new Error("INVALID_ADMIN_PROFILE");
   }
 
-  if (requestedNext?.startsWith(`/admin/${restaurantId}`)) {
+  authDebug("login rbac normalized", {
+    uid: user.uid,
+    role: user.role,
+    restaurantSlug: user.restaurantSlug,
+    isActive: user.isActive,
+  });
+
+  if (requestedNext?.startsWith(`/admin/${user.restaurantSlug}`)) {
     return requestedNext;
   }
 
-  return `/admin/${restaurantId}`;
+  return `/admin/${user.restaurantSlug}`;
 }
 
 function LoginForm() {
@@ -55,20 +74,28 @@ function LoginForm() {
     setLoading(true);
 
     try {
+      authDebug("email login submit", { email });
       const credential = await signInWithEmailAndPassword(auth, email, password);
+      authDebug("email login success", { uid: credential.user.uid, email: credential.user.email });
       const redirectTo = await getAdminRedirect(credential.user, searchParams.get("next"));
       toast.success("Signed in successfully.");
       router.replace(redirectTo);
     } catch (error) {
-      console.error("Sign-in error", error);
+      const code = getFirebaseErrorCode(error);
+      const message = getFirebaseErrorMessage(error);
+      console.error("Sign-in error", { code, message });
       if (error instanceof Error && error.message === "NO_ADMIN_PROFILE") {
         await signOut(auth).catch(() => undefined);
         toast.error("This Firebase account is not linked to a Zenvy Dine admin profile.");
       } else if (error instanceof Error && error.message === "INVALID_ADMIN_PROFILE") {
         await signOut(auth).catch(() => undefined);
-        toast.error("Your admin profile is incomplete. Ask the owner to assign a role and restaurant.");
+        toast.error("Your admin profile is inactive or missing role/restaurantSlug.");
+      } else if (code === "permission-denied" || code === "FirebaseError") {
+        toast.error("Signed in, but Firestore blocked your admin profile. Deploy the updated Firestore rules.");
+      } else if (code?.startsWith("auth/")) {
+        toast.error(`Firebase Auth rejected the login: ${code}`);
       } else {
-        toast.error("Could not sign in. Check your email and password.");
+        toast.error(`Login failed after Firebase Auth: ${message}`);
       }
     } finally {
       setLoading(false);
@@ -78,13 +105,16 @@ function LoginForm() {
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
+      authDebug("google login submit");
       const credential = await signInWithPopup(auth, new GoogleAuthProvider());
+      authDebug("google login success", { uid: credential.user.uid, email: credential.user.email });
       const redirectTo = await getAdminRedirect(credential.user, searchParams.get("next"));
       toast.success("Signed in with Google.");
       router.replace(redirectTo);
     } catch (error) {
-      console.error("Google sign-in error", error);
-      toast.error("Google sign-in is unavailable or this account has no admin profile.");
+      const code = getFirebaseErrorCode(error);
+      console.error("Google sign-in error", { code, message: getFirebaseErrorMessage(error) });
+      toast.error(code ? `Google sign-in failed: ${code}` : "Google sign-in is unavailable or this account has no admin profile.");
     } finally {
       setLoading(false);
     }

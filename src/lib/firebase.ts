@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { authDebug, maskValue } from "@/lib/auth-debug";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,10 +14,34 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+const missingFirebaseConfig = Object.entries(firebaseConfig)
+  .filter(([key, value]) => key !== "measurementId" && !value)
+  .map(([key]) => key);
+
+if (missingFirebaseConfig.length > 0) {
+  console.warn("[firebase] Missing client environment variables", missingFirebaseConfig);
+}
+
+authDebug("firebase client config", {
+  apiKey: maskValue(firebaseConfig.apiKey),
+  authDomain: firebaseConfig.authDomain || "missing",
+  projectId: firebaseConfig.projectId || "missing",
+  storageBucket: firebaseConfig.storageBucket || "missing",
+  messagingSenderId: maskValue(firebaseConfig.messagingSenderId),
+  appId: maskValue(firebaseConfig.appId),
+  appCountBeforeInit: getApps().length,
+});
+
 // Initialize Firebase
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+
+authDebug("firebase initialized", {
+  appName: app.name,
+  projectId: app.options.projectId,
+  authDomain: app.options.authDomain,
+});
 
 export { app, auth, db, storage };
