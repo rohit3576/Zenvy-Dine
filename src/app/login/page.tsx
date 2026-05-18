@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { auth, db } from "@/lib/firebase";
-import { normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
+import { isRestaurantAdmin, normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
 import { authDebug, getFirebaseErrorCode, getFirebaseErrorMessage } from "@/lib/auth-debug";
 import { persistFirebaseSession } from "@/lib/auth-session";
 
@@ -27,7 +27,12 @@ async function getAdminRedirect(firebaseUser: FirebaseUser, requestedNext: strin
 
   try {
     const profile = await getDoc(doc(db, "users", firebaseUser.uid));
-    authDebug("login rbac lookup", { uid: firebaseUser.uid, exists: profile.exists() });
+    authDebug("login rbac lookup", {
+      path: `users/${firebaseUser.uid}`,
+      uid: firebaseUser.uid,
+      exists: profile.exists(),
+      profile: profile.exists() ? profile.data() : null,
+    });
 
     if (!profile.exists()) {
       throw new Error("NO_ADMIN_PROFILE");
@@ -47,11 +52,17 @@ async function getAdminRedirect(firebaseUser: FirebaseUser, requestedNext: strin
     throw new Error("INVALID_ADMIN_PROFILE");
   }
 
+  if (!isRestaurantAdmin(user)) {
+    throw new Error("INVALID_ADMIN_PROFILE");
+  }
+
   authDebug("login rbac normalized", {
     uid: user.uid,
     role: user.role,
     restaurantSlug: user.restaurantSlug,
     isActive: user.isActive,
+    expectedRole: "OWNER | MANAGER | STAFF",
+    allowed: isRestaurantAdmin(user),
   });
 
   if (requestedNext?.startsWith(`/admin/${user.restaurantSlug}`)) {

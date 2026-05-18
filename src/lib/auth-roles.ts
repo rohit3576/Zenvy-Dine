@@ -2,6 +2,7 @@ import type { Permission, Role, User } from "@/types";
 
 const roleAliases: Record<string, Role> = {
   OWNER: "OWNER",
+  ADMIN: "OWNER",
   RESTAURANT_OWNER: "OWNER",
   SUPER_ADMIN: "OWNER",
   MANAGER: "MANAGER",
@@ -33,7 +34,8 @@ export const rolePermissions: Record<Role, Permission[]> = {
 };
 
 export function normalizeRole(role: unknown): Role | null {
-  return typeof role === "string" ? roleAliases[role] ?? null : null;
+  if (typeof role !== "string") return null;
+  return roleAliases[role.trim().toUpperCase()] ?? null;
 }
 
 export function permissionsForRole(role: Role): Permission[] {
@@ -46,25 +48,42 @@ export function hasPermission(user: Pick<User, "role" | "permissions"> | null, p
 }
 
 export function getUserRestaurantSlug(user: Pick<User, "restaurantId" | "restaurantSlug"> | null) {
-  return user?.restaurantSlug || user?.restaurantId || null;
+  return user?.restaurantSlug?.trim() || user?.restaurantId?.trim() || null;
 }
 
-export function canAccessAdmin(user: Pick<User, "role" | "restaurantId" | "restaurantSlug" | "isActive"> | null, restaurantSlug: string) {
+export function isRestaurantAdmin(user: Pick<User, "role" | "restaurantId" | "restaurantSlug" | "isActive"> | null, restaurantSlug?: string) {
+  const userSlug = getUserRestaurantSlug(user);
+  const expectedSlug = restaurantSlug?.trim();
+
   return !!user
     && user.isActive
-    && getUserRestaurantSlug(user) === restaurantSlug
+    && !!userSlug
+    && (!expectedSlug || userSlug === expectedSlug)
     && ["OWNER", "MANAGER", "STAFF"].includes(user.role);
 }
+
+export const canAccessAdmin = isRestaurantAdmin;
 
 export function normalizeUserProfile(uid: string, data: Record<string, unknown>, fallbackEmail = ""): User | null {
   const role = normalizeRole(data.role);
   const restaurantSlug = typeof data.restaurantSlug === "string"
-    ? data.restaurantSlug
+    ? data.restaurantSlug.trim()
     : typeof data.restaurantId === "string"
-      ? data.restaurantId
+      ? data.restaurantId.trim()
       : null;
   const email = typeof data.email === "string" ? data.email : fallbackEmail;
   const isActive = typeof data.isActive === "boolean" ? data.isActive : true;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("AUTH UID:", uid);
+    console.log("PROFILE:", data);
+    console.log("ROLE:", data.role);
+    console.log("SLUG:", data.restaurantSlug ?? data.restaurantId);
+    console.log("ACTIVE:", data.isActive);
+    console.log("EXPECTED ROLE:", "OWNER | MANAGER | STAFF");
+    console.log("NORMALIZED ROLE:", role);
+    console.log("NORMALIZED SLUG:", restaurantSlug);
+  }
 
   if (!role || !restaurantSlug || !email || !isActive) return null;
 

@@ -48,16 +48,16 @@ service cloud.firestore {
     }
 
     function isOwner() {
-      return hasRole(['OWNER', 'RESTAURANT_OWNER', 'SUPER_ADMIN']);
+      return hasRole(['OWNER', 'owner', 'ADMIN', 'admin', 'RESTAURANT_OWNER', 'restaurant_owner', 'SUPER_ADMIN', 'super_admin']);
     }
 
     function isOwnerOrManager() {
-      return hasRole(['OWNER', 'RESTAURANT_OWNER', 'SUPER_ADMIN', 'MANAGER']);
+      return hasRole(['OWNER', 'owner', 'ADMIN', 'admin', 'RESTAURANT_OWNER', 'restaurant_owner', 'SUPER_ADMIN', 'super_admin', 'MANAGER', 'manager']);
     }
 
     function isAnyAdmin(restaurantId) {
       return isTenant(restaurantId)
-        && hasRole(['OWNER', 'RESTAURANT_OWNER', 'SUPER_ADMIN', 'MANAGER', 'STAFF', 'CASHIER', 'KITCHEN_STAFF']);
+        && hasRole(['OWNER', 'owner', 'ADMIN', 'admin', 'RESTAURANT_OWNER', 'restaurant_owner', 'SUPER_ADMIN', 'super_admin', 'MANAGER', 'manager', 'STAFF', 'staff', 'CASHIER', 'cashier', 'KITCHEN_STAFF', 'kitchen_staff']);
     }
 
     function restaurantExists(restaurantId) {
@@ -79,7 +79,7 @@ service cloud.firestore {
         ])
         && request.resource.data.uid == userId
         && request.resource.data.email is string
-        && request.resource.data.role in ['OWNER', 'MANAGER', 'STAFF']
+        && request.resource.data.role in ['OWNER', 'MANAGER', 'STAFF', 'owner', 'admin', 'manager', 'staff']
         && getRequestedRestaurantSlug() is string
         && request.resource.data.get('isActive', true) is bool
         && request.resource.data.permissions is list;
@@ -114,7 +114,7 @@ service cloud.firestore {
         && hasUserProfile()
         && isOwnerOrManager()
         && isTenant(getRequestedRestaurantSlug())
-        && request.resource.data.role in ['MANAGER', 'STAFF'];
+        && request.resource.data.role in ['MANAGER', 'STAFF', 'manager', 'staff'];
 
       allow update: if isLoggedIn()
         && isValidUserProfile(userId)
@@ -126,7 +126,7 @@ service cloud.firestore {
             && isOwnerOrManager()
             && isTenant(resource.data.get('restaurantSlug', resource.data.get('restaurantId', null)))
             && resource.data.get('restaurantSlug', resource.data.get('restaurantId', null)) == getRequestedRestaurantSlug()
-            && request.resource.data.role in ['MANAGER', 'STAFF'])
+            && request.resource.data.role in ['MANAGER', 'STAFF', 'manager', 'staff'])
         );
 
       allow delete: if hasUserProfile() && isOwner() && isTenant(resource.data.get('restaurantSlug', resource.data.get('restaurantId', null)));
@@ -136,7 +136,7 @@ service cloud.firestore {
       allow read: if isAnyAdmin(resource.data.restaurantId);
       allow create: if isOwnerOrManager()
         && isTenant(request.resource.data.restaurantId)
-        && request.resource.data.role in ['OWNER', 'MANAGER', 'STAFF'];
+        && request.resource.data.role in ['OWNER', 'MANAGER', 'STAFF', 'owner', 'admin', 'manager', 'staff'];
       allow update, delete: if isOwnerOrManager() && isTenant(resource.data.restaurantId);
     }
 

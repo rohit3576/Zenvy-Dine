@@ -47,7 +47,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           await persistFirebaseSession(fUser);
           authDebug("session cookie refreshed", { uid: fUser.uid });
           const userDoc = await getDoc(doc(db, "users", fUser.uid));
-          authDebug("rbac profile lookup", { uid: fUser.uid, exists: userDoc.exists() });
+          authDebug("rbac profile lookup", {
+            path: `users/${fUser.uid}`,
+            uid: fUser.uid,
+            exists: userDoc.exists(),
+            profile: userDoc.exists() ? userDoc.data() : null,
+          });
           if (userDoc.exists()) {
             const profile = normalizeUserProfile(fUser.uid, userDoc.data(), fUser.email ?? "");
             authDebug("rbac profile normalized", {

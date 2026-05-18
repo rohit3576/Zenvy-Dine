@@ -4,16 +4,34 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { canAccessAdmin } from "@/lib/auth-roles";
+import { getUserRestaurantSlug, isRestaurantAdmin } from "@/lib/auth-roles";
 
 export default function AdminGuard({ children, slug }: { children: React.ReactNode; slug: string }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("ADMIN GUARD DECISION:", {
+        loading,
+        uid: user?.uid ?? null,
+        role: user?.role ?? null,
+        restaurantSlug: getUserRestaurantSlug(user),
+        isActive: user?.isActive ?? null,
+        expectedSlug: slug,
+        allowed: isRestaurantAdmin(user, slug),
+      });
+    }
+
     if (!loading && !user) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("ADMIN GUARD REDIRECT:", `/login?next=/admin/${slug}`);
+      }
       router.push(`/login?next=/admin/${slug}`);
-    } else if (!loading && user && !canAccessAdmin(user, slug)) {
+    } else if (!loading && user && !isRestaurantAdmin(user, slug)) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("ADMIN GUARD REDIRECT:", `/unauthorized?restaurant=${slug}`);
+      }
       router.push(`/unauthorized?restaurant=${slug}`);
     }
   }, [user, loading, router, slug]);
@@ -29,7 +47,7 @@ export default function AdminGuard({ children, slug }: { children: React.ReactNo
 
   if (!user) return null;
 
-  if (!canAccessAdmin(user, slug)) return null;
+  if (!isRestaurantAdmin(user, slug)) return null;
 
   return <>{children}</>;
 }

@@ -4,7 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
-import { getUserRestaurantSlug, normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
+import { getUserRestaurantSlug, isRestaurantAdmin, normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
 import { sessionCookieName } from "@/lib/auth-session";
 import type { User } from "@/types";
 
@@ -16,6 +16,14 @@ export const getServerAuthUser = cache(async (): Promise<User | null> => {
     const decodedToken = await getAdminAuth().verifyIdToken(token);
     try {
       const snapshot = await getAdminDb().collection("users").doc(decodedToken.uid).get();
+      if (process.env.NODE_ENV !== "production") {
+        console.log("SERVER PROFILE LOOKUP:", {
+          path: `users/${decodedToken.uid}`,
+          uid: decodedToken.uid,
+          exists: snapshot.exists,
+          profile: snapshot.exists ? snapshot.data() : null,
+        });
+      }
 
       if (snapshot.exists) {
         return normalizeUserProfile(decodedToken.uid, snapshot.data() ?? {}, decodedToken.email ?? "");
@@ -43,7 +51,17 @@ export async function requireAdminUser(restaurantId: string) {
     redirect(`/login?next=/admin/${restaurantId}`);
   }
 
-  if (getUserRestaurantSlug(user) !== restaurantId) {
+  if (!isRestaurantAdmin(user, restaurantId)) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("SERVER ADMIN REDIRECT:", {
+        uid: user.uid,
+        role: user.role,
+        restaurantSlug: getUserRestaurantSlug(user),
+        expectedSlug: restaurantId,
+        allowed: isRestaurantAdmin(user, restaurantId),
+        redirectTo: `/unauthorized?restaurant=${restaurantId}`,
+      });
+    }
     redirect(`/unauthorized?restaurant=${restaurantId}`);
   }
 
