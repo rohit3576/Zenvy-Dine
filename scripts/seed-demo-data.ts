@@ -16,7 +16,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const timestamp = admin.firestore.FieldValue.serverTimestamp;
 
-const restaurantId = "demo-spice-garden";
+const restaurantId = "spice-garden";
 const restaurantSlug = "spice-garden";
 
 const categories = [
@@ -49,6 +49,7 @@ async function seedDemoData() {
   await db.collection("restaurants").doc(restaurantId).set({
     name: "Spice Garden",
     slug: restaurantSlug,
+    restaurantSlug,
     logoUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=400&fit=crop",
     address: "18 Lotus Avenue, Indiranagar, Bengaluru",
     phone: "+91 98765 43210",
@@ -72,6 +73,7 @@ async function seedDemoData() {
   for (const category of categories) {
     await db.collection("menuCategories").doc(`${restaurantId}-${category.id}`).set({
       restaurantId,
+      restaurantSlug,
       name: category.name,
       order: category.order,
       isActive: true,
@@ -84,6 +86,7 @@ async function seedDemoData() {
     const [categoryId, name, description, price, isVeg, isBestseller, imageUrl] = menuItems[index];
     await db.collection("menuItems").doc(`${restaurantId}-item-${index + 1}`).set({
       restaurantId,
+      restaurantSlug,
       categoryId: `${restaurantId}-${categoryId}`,
       name,
       description,
@@ -113,6 +116,7 @@ async function seedDemoData() {
   for (let tableNumber = 1; tableNumber <= 10; tableNumber += 1) {
     await db.collection("tables").doc(`${restaurantId}-table-${tableNumber}`).set({
       restaurantId,
+      restaurantSlug,
       number: String(tableNumber),
       capacity: tableNumber <= 4 ? 2 : tableNumber <= 8 ? 4 : 6,
       isActive: true,
@@ -121,6 +125,96 @@ async function seedDemoData() {
       updatedAt: timestamp(),
     });
   }
+
+  const sampleOrders = [
+    {
+      id: `${restaurantId}-order-1`,
+      tableId: `${restaurantId}-table-1`,
+      tableNumber: "1",
+      items: [
+        {
+          id: `${restaurantId}-item-5`,
+          name: "Paneer Butter Masala",
+          price: 390,
+          quantity: 1,
+          addOns: [],
+          totalPrice: 390,
+        },
+        {
+          id: `${restaurantId}-item-8`,
+          name: "Garlic Butter Naan",
+          price: 90,
+          quantity: 2,
+          addOns: [],
+          totalPrice: 180,
+        },
+      ],
+      subtotal: 570,
+      tax: 28.5,
+      serviceCharge: 14.25,
+      total: 612.75,
+      status: "CONFIRMED",
+      paymentStatus: "PENDING",
+      paymentMethod: "CASH",
+      customerName: "Demo Guest",
+    },
+    {
+      id: `${restaurantId}-order-2`,
+      tableId: `${restaurantId}-table-3`,
+      tableNumber: "3",
+      items: [
+        {
+          id: `${restaurantId}-item-6`,
+          name: "Butter Chicken",
+          price: 480,
+          quantity: 1,
+          addOns: [],
+          totalPrice: 480,
+        },
+      ],
+      subtotal: 480,
+      tax: 24,
+      serviceCharge: 12,
+      total: 516,
+      status: "PREPARING",
+      paymentStatus: "PAID",
+      paymentMethod: "ONLINE",
+      customerName: "Kitchen Demo",
+    },
+  ];
+
+  for (const order of sampleOrders) {
+    await db.collection("orders").doc(order.id).set({
+      ...order,
+      restaurantId,
+      restaurantSlug,
+      createdAt: timestamp(),
+      updatedAt: timestamp(),
+    });
+  }
+
+  await db.collection("waiterCalls").doc(`${restaurantId}-waiter-call-1`).set({
+    restaurantId,
+    restaurantSlug,
+    tableNumber: "2",
+    status: "OPEN",
+    message: "Water requested",
+    createdAt: timestamp(),
+    updatedAt: timestamp(),
+  });
+
+  await db.collection("restaurantStaff").doc(`${restaurantId}-owner`).set({
+    restaurantId,
+    restaurantSlug,
+    userId: "demo-owner",
+    email: "owner@spicegarden.test",
+    displayName: "Demo Owner",
+    role: "OWNER",
+    isActive: true,
+    inviteStatus: "ACTIVE",
+    createdAt: timestamp(),
+    updatedAt: timestamp(),
+  });
 
   console.log("Demo URL: /r/spice-garden/table/1");
   console.log("Printable QR cards are available in Admin > Table Management.");

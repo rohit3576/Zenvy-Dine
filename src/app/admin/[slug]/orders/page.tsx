@@ -45,7 +45,7 @@ export default function LiveOrdersPage() {
 
     const q = query(
       collection(db, "orders"),
-      where("restaurantId", "==", user.restaurantId),
+      where("restaurantSlug", "==", user.restaurantId),
       orderBy("createdAt", "desc")
     );
 

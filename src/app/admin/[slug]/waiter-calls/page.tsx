@@ -15,6 +15,7 @@ import { isDemoRestaurant } from "@/data/demo-restaurant";
 interface WaiterCall {
   id: string;
   restaurantId: string;
+  restaurantSlug?: string;
   tableNumber: string;
   status: "OPEN" | "ACKNOWLEDGED" | "CLOSED";
   createdAt?: { toDate: () => Date };
@@ -30,7 +31,7 @@ export default function WaiterCallsPage() {
 
     const callsQuery = query(
       collection(db, "waiterCalls"),
-      where("restaurantId", "==", user.restaurantId),
+      where("restaurantSlug", "==", user.restaurantId),
       where("status", "in", ["OPEN", "ACKNOWLEDGED"]),
       orderBy("createdAt", "desc")
     );

@@ -22,7 +22,7 @@ export default function KDSPage() {
     // KDS typically shows orders that are CONFIRMED or PREPARING
     const q = query(
       collection(db, "orders"),
-      where("restaurantId", "==", user.restaurantId),
+      where("restaurantSlug", "==", user.restaurantId),
       where("status", "in", ["CONFIRMED", "PREPARING"]),
       orderBy("createdAt", "asc") // Oldest first for KDS
     );

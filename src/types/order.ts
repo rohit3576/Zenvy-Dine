@@ -14,6 +14,7 @@ export type PaymentMethod = "ONLINE" | "CASH";
 
 export interface Order extends BaseEntity {
   restaurantId: string;
+  restaurantSlug?: string;
   tableId: string;
   tableNumber: string;
   items: OrderItem[];

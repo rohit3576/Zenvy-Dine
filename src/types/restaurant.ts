@@ -3,6 +3,7 @@ import { BaseEntity } from "./index";
 export interface Restaurant extends BaseEntity {
   name: string;
   slug: string; // Unique URL identifier
+  restaurantSlug?: string;
   logoUrl?: string;
   address: string;
   phone: string;
@@ -27,6 +28,7 @@ export interface PaymentSettings {
 
 export interface Table extends BaseEntity {
   restaurantId: string;
+  restaurantSlug?: string;
   number: string;
   capacity?: number;
   isActive: boolean;

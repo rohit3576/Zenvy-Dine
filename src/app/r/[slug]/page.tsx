@@ -16,7 +16,8 @@ export default async function RestaurantLandingPage({ params }: PageProps) {
 
   if (!restaurant) notFound();
 
-  const tables = await getTables(restaurant.id) as Table[];
+  const restaurantSlug = restaurant.slug || restaurant.restaurantSlug || slug;
+  const tables = await getTables(restaurantSlug) as Table[];
 
   return (
     <div className="min-h-screen p-6">

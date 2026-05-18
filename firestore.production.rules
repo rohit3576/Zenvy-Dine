@@ -31,6 +31,10 @@ service cloud.firestore {
       return request.resource.data.get('restaurantSlug', request.resource.data.get('restaurantId', null));
     }
 
+    function getResourceRestaurantSlug() {
+      return resource.data.get('restaurantSlug', resource.data.get('restaurantId', null));
+    }
+
     function isActiveUser() {
       return request.auth.token.isActive is bool
         ? request.auth.token.isActive == true
@@ -86,8 +90,8 @@ service cloud.firestore {
     }
 
     function isValidPublicOrder() {
-      return request.resource.data.restaurantId is string
-        && restaurantExists(request.resource.data.restaurantId)
+      return getRequestedRestaurantSlug() is string
+        && restaurantExists(getRequestedRestaurantSlug())
         && request.resource.data.tableNumber is string
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0
@@ -107,7 +111,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isLoggedIn()
-        && (request.auth.uid == userId || (hasUserProfile() && isTenant(resource.data.restaurantId) && isOwnerOrManager()));
+        && (request.auth.uid == userId || (hasUserProfile() && isTenant(getResourceRestaurantSlug()) && isOwnerOrManager()));
 
       allow create: if isLoggedIn()
         && isValidUserProfile(userId)
@@ -133,61 +137,69 @@ service cloud.firestore {
     }
 
     match /restaurantStaff/{staffId} {
-      allow read: if isAnyAdmin(resource.data.restaurantId);
+      allow read: if isAnyAdmin(getResourceRestaurantSlug());
       allow create: if isOwnerOrManager()
-        && isTenant(request.resource.data.restaurantId)
+        && isTenant(getRequestedRestaurantSlug())
         && request.resource.data.role in ['OWNER', 'MANAGER', 'STAFF', 'owner', 'admin', 'manager', 'staff'];
-      allow update, delete: if isOwnerOrManager() && isTenant(resource.data.restaurantId);
+      allow update, delete: if isOwnerOrManager() && isTenant(getResourceRestaurantSlug());
+    }
+
+    match /staff/{staffId} {
+      allow read: if isAnyAdmin(resource.data.get('restaurantSlug', resource.data.get('restaurantId', null)));
+      allow create: if isOwnerOrManager()
+        && isTenant(request.resource.data.get('restaurantSlug', request.resource.data.get('restaurantId', null)))
+        && request.resource.data.role in ['OWNER', 'MANAGER', 'STAFF', 'owner', 'admin', 'manager', 'staff'];
+      allow update, delete: if isOwnerOrManager() && isTenant(resource.data.get('restaurantSlug', resource.data.get('restaurantId', null)));
     }
 
     match /menuCategories/{categoryId} {
       allow read: if true;
-      allow create: if isOwnerOrManager() && isTenant(request.resource.data.restaurantId);
-      allow update, delete: if isOwnerOrManager() && isTenant(resource.data.restaurantId);
+      allow create: if isOwnerOrManager() && isTenant(getRequestedRestaurantSlug());
+      allow update, delete: if isOwnerOrManager() && isTenant(getResourceRestaurantSlug());
     }
 
     match /menuItems/{itemId} {
       allow read: if true;
-      allow create: if isOwnerOrManager() && isTenant(request.resource.data.restaurantId);
-      allow update, delete: if isOwnerOrManager() && isTenant(resource.data.restaurantId);
+      allow create: if isOwnerOrManager() && isTenant(getRequestedRestaurantSlug());
+      allow update, delete: if isOwnerOrManager() && isTenant(getResourceRestaurantSlug());
     }
 
     match /tables/{tableId} {
       allow read: if true;
-      allow create: if isOwnerOrManager() && isTenant(request.resource.data.restaurantId);
-      allow update, delete: if isOwnerOrManager() && isTenant(resource.data.restaurantId);
+      allow create: if isOwnerOrManager() && isTenant(getRequestedRestaurantSlug());
+      allow update, delete: if isOwnerOrManager() && isTenant(getResourceRestaurantSlug());
     }
 
     match /orders/{orderId} {
-      allow read: if isAnyAdmin(resource.data.restaurantId);
+      allow read: if isAnyAdmin(getResourceRestaurantSlug());
       allow create: if isValidPublicOrder();
-      allow update: if isAnyAdmin(resource.data.restaurantId);
-      allow delete: if isOwner() && isTenant(resource.data.restaurantId);
+      allow update: if isAnyAdmin(getResourceRestaurantSlug());
+      allow delete: if isOwner() && isTenant(getResourceRestaurantSlug());
     }
 
     match /orderItems/{itemId} {
       allow read: if true;
       allow create: if true;
-      allow update: if isAnyAdmin(resource.data.restaurantId);
-      allow delete: if isOwner() && isTenant(resource.data.restaurantId);
+      allow update: if isAnyAdmin(getResourceRestaurantSlug());
+      allow delete: if isOwner() && isTenant(getResourceRestaurantSlug());
     }
 
     match /payments/{paymentId} {
-      allow read: if isAnyAdmin(resource.data.restaurantId);
+      allow read: if isAnyAdmin(getResourceRestaurantSlug());
       allow write: if false;
     }
 
     match /waiterCalls/{callId} {
-      allow read, update: if isAnyAdmin(resource.data.restaurantId);
-      allow create: if request.resource.data.restaurantId is string
-        && restaurantExists(request.resource.data.restaurantId)
+      allow read, update: if isAnyAdmin(getResourceRestaurantSlug());
+      allow create: if getRequestedRestaurantSlug() is string
+        && restaurantExists(getRequestedRestaurantSlug())
         && request.resource.data.tableNumber is string
         && request.resource.data.status == 'OPEN';
-      allow delete: if isOwner() && isTenant(resource.data.restaurantId);
+      allow delete: if isOwner() && isTenant(getResourceRestaurantSlug());
     }
 
     match /analytics/{docId} {
-      allow read: if isOwner() && isTenant(resource.data.restaurantId);
+      allow read: if isOwner() && isTenant(getResourceRestaurantSlug());
       allow write: if false;
     }
   }

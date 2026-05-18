@@ -10,6 +10,7 @@
     "validate:env": "node scripts/validate-env.mjs",
     "seed": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/seed-demo.ts",
     "seed:demo": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/seed-demo.ts",
+    "seed:debug": "node scripts/seed-firestore-debug.mjs",
     "seed:production": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/seed-production.ts",
     "reset-db": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/seed.ts --reset"
   },

@@ -62,6 +62,7 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
       }
       await addDoc(collection(db, "waiterCalls"), {
         restaurantId: restaurant.id,
+        restaurantSlug: restaurant.slug,
         tableNumber: tableId,
         status: "OPEN",
         createdAt: serverTimestamp(),

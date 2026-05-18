@@ -27,7 +27,7 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
 
     const q = query(
       collection(db, "tables"),
-      where("restaurantId", "==", user.restaurantId)
+      where("restaurantSlug", "==", user.restaurantId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -62,6 +62,7 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
           {
             id: `local-table-${Date.now()}`,
             restaurantId,
+            restaurantSlug: restaurantId,
             number: newTableNumber,
             isActive: true,
             createdAt: demoTables[0].createdAt,
@@ -74,6 +75,7 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
       }
       await addDoc(collection(db, "tables"), {
         restaurantId,
+        restaurantSlug: restaurantId,
         number: newTableNumber,
         isActive: true,
         createdAt: serverTimestamp(),

@@ -17,12 +17,13 @@ export default async function TableMenuPage({ params }: PageProps) {
   const restaurant = await getRestaurantBySlug(slug) as Restaurant | null;
   if (!restaurant) notFound();
 
-  const table = await getTableByNumber(restaurant.id, tableId);
+  const restaurantSlug = restaurant.slug || restaurant.restaurantSlug || slug;
+  const table = await getTableByNumber(restaurantSlug, tableId);
   if (!table) notFound();
 
   const [categories, items] = await Promise.all([
-    getCategories(restaurant.id),
-    getMenuItems(restaurant.id),
+    getCategories(restaurantSlug),
+    getMenuItems(restaurantSlug),
   ]);
 
   return (

@@ -55,7 +55,7 @@ export default function MenuManagementPage() {
 
     const categoryQuery = query(
       collection(db, "menuCategories"),
-      where("restaurantId", "==", user.restaurantId),
+      where("restaurantSlug", "==", user.restaurantId),
       orderBy("order", "asc")
     );
 
@@ -79,7 +79,7 @@ export default function MenuManagementPage() {
 
     const itemQuery = query(
       collection(db, "menuItems"),
-      where("restaurantId", "==", user.restaurantId)
+      where("restaurantSlug", "==", user.restaurantId)
     );
 
     return onSnapshot(itemQuery, (snapshot) => {
@@ -118,6 +118,7 @@ export default function MenuManagementPage() {
           {
             id: `local-category-${Date.now()}`,
             restaurantId,
+            restaurantSlug: restaurantId,
             name: categoryName.trim(),
             order: current.length + 1,
             isActive: true,
@@ -131,6 +132,7 @@ export default function MenuManagementPage() {
       }
       await addDoc(collection(db, "menuCategories"), {
         restaurantId,
+        restaurantSlug: restaurantId,
         name: categoryName.trim(),
         order: categories.length + 1,
         isActive: true,
@@ -213,6 +215,7 @@ export default function MenuManagementPage() {
           {
             id: `local-item-${Date.now()}`,
             restaurantId,
+            restaurantSlug: restaurantId,
             categoryId: itemForm.categoryId,
             name: itemForm.name.trim(),
             description: itemForm.description.trim(),
@@ -240,6 +243,7 @@ export default function MenuManagementPage() {
       }
       await addDoc(collection(db, "menuItems"), {
         restaurantId,
+        restaurantSlug: restaurantId,
         categoryId: itemForm.categoryId,
         name: itemForm.name.trim(),
         description: itemForm.description.trim(),

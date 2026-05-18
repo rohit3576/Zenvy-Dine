@@ -61,6 +61,7 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
     try {
       const orderData = {
         restaurantId: restaurant.id,
+        restaurantSlug: restaurant.slug,
         tableId: tableId,
         tableNumber: tableId, // Assuming tableId is the number for now
         items: items,
@@ -98,6 +99,7 @@ export default function CartDrawer({ restaurant, tableId }: CartDrawerProps) {
           currency: restaurant.settings.currency || "INR",
           receipt: docRef.id,
           restaurantId: restaurant.id,
+          restaurantSlug: restaurant.slug,
         });
         const result = response.data as { order?: { id: string; amount: number; currency: string } };
         const razorpayOrder = result.order;

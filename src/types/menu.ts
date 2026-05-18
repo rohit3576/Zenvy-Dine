@@ -2,6 +2,7 @@ import { BaseEntity } from "./index";
 
 export interface Category extends BaseEntity {
   restaurantId: string;
+  restaurantSlug?: string;
   name: string;
   order: number;
   isActive: boolean;
@@ -9,6 +10,7 @@ export interface Category extends BaseEntity {
 
 export interface MenuItem extends BaseEntity {
   restaurantId: string;
+  restaurantSlug?: string;
   categoryId: string;
   name: string;
   description: string;

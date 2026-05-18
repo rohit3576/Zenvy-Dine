@@ -29,6 +29,7 @@ import { demoStaff, isDemoRestaurant } from "@/data/demo-restaurant";
 type StaffMember = {
   id: string;
   restaurantId: string;
+  restaurantSlug?: string;
   userId: string;
   email: string;
   displayName: string;
@@ -58,7 +59,7 @@ export default function StaffManagementPage() {
 
     const staffQuery = query(
       collection(db, "restaurantStaff"),
-      where("restaurantId", "==", user.restaurantId)
+      where("restaurantSlug", "==", user.restaurantId)
     );
 
     return onSnapshot(staffQuery, (snapshot) => {
@@ -92,6 +93,7 @@ export default function StaffManagementPage() {
       const userId = `staff-${staffId}`;
       const payload = {
         restaurantId,
+        restaurantSlug: restaurantId,
         userId,
         email: inviteForm.email.trim().toLowerCase(),
         displayName: inviteForm.displayName.trim() || inviteForm.email.trim(),
@@ -117,6 +119,7 @@ export default function StaffManagementPage() {
         displayName: payload.displayName,
         role: payload.role,
         restaurantId,
+        restaurantSlug: restaurantId,
         permissions: permissionsForRole(payload.role),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
