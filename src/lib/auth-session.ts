@@ -8,12 +8,14 @@ function secureCookieAttribute() {
   return window.location.protocol === "https:" ? "; Secure" : "";
 }
 
-export async function persistFirebaseSession(user: FirebaseUser) {
-  const token = await user.getIdToken();
+export async function persistFirebaseSession(user: FirebaseUser, forceRefresh = false) {
+  const token = await user.getIdToken(forceRefresh);
   document.cookie = `${sessionCookieName}=${token}; Path=/; Max-Age=${sessionMaxAge}; SameSite=Lax${secureCookieAttribute()}`;
+  if (process.env.NODE_ENV !== "production") {
+    console.log("MIDDLEWARE TOKEN:", token ? "present in __session cookie" : "missing");
+  }
 }
 
 export function clearFirebaseSession() {
   document.cookie = `${sessionCookieName}=; Path=/; Max-Age=0; SameSite=Lax${secureCookieAttribute()}`;
 }
-

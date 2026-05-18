@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { authDebug, maskValue } from "@/lib/auth-debug";
@@ -37,11 +37,33 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+let persistencePromise: Promise<void> | null = null;
 
 authDebug("firebase initialized", {
   appName: app.name,
   projectId: app.options.projectId,
   authDomain: app.options.authDomain,
 });
+
+export function ensureAuthPersistence() {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (!persistencePromise) {
+    persistencePromise = setPersistence(auth, browserLocalPersistence)
+      .then(() => {
+        authDebug("auth persistence ready", { persistence: "browserLocalPersistence" });
+        if (process.env.NODE_ENV !== "production") {
+          console.log("AUTH INITIALIZED");
+          console.log("CURRENT USER:", auth.currentUser);
+        }
+      })
+      .catch((error) => {
+        persistencePromise = null;
+        console.error("[auth] Failed to configure browserLocalPersistence", error);
+        throw error;
+      });
+  }
+
+  return persistencePromise;
+}
 
 export { app, auth, db, storage };

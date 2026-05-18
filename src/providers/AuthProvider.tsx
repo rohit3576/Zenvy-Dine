@@ -2,13 +2,11 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import {
-  browserLocalPersistence,
   onIdTokenChanged,
-  setPersistence,
   User as FirebaseUser,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, ensureAuthPersistence } from "@/lib/firebase";
 import { User } from "@/types";
 import { normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
 import { authDebug, getFirebaseErrorCode, getFirebaseErrorMessage } from "@/lib/auth-debug";
@@ -32,16 +30,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void setPersistence(auth, browserLocalPersistence).catch((error) => {
-      console.error("Failed to enable persistent auth sessions", {
-        code: getFirebaseErrorCode(error),
-        message: getFirebaseErrorMessage(error),
-      });
-    });
+    let isMounted = true;
 
-    const unsubscribe = onIdTokenChanged(auth, async (fUser) => {
+    const handleAuthUser = async (fUser: FirebaseUser | null) => {
+      if (!isMounted) return;
       setFirebaseUser(fUser);
       authDebug("id token changed", { uid: fUser?.uid ?? null, email: fUser?.email ?? null });
+      if (process.env.NODE_ENV !== "production") {
+        console.log("CURRENT USER:", fUser);
+        console.log("AUTH LOADING:", true);
+      }
       if (fUser) {
         try {
           await persistFirebaseSession(fUser);
@@ -92,10 +90,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         clearFirebaseSession();
         setUser(null);
       }
-      setLoading(false);
-    });
+      if (isMounted) {
+        setLoading(false);
+        if (process.env.NODE_ENV !== "production") {
+          console.log("AUTH LOADING:", false);
+        }
+      }
+    };
 
-    return () => unsubscribe();
+    let unsubscribe: (() => void) | undefined;
+
+    ensureAuthPersistence()
+      .then(() => {
+        if (!isMounted) return;
+        unsubscribe = onIdTokenChanged(auth, handleAuthUser);
+      })
+      .catch((error) => {
+        console.error("Failed to enable persistent auth sessions", {
+          code: getFirebaseErrorCode(error),
+          message: getFirebaseErrorMessage(error),
+        });
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+      unsubscribe?.();
+    };
   }, []);
 
   return (

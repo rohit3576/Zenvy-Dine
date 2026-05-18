@@ -15,14 +15,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, ensureAuthPersistence } from "@/lib/firebase";
 import { isRestaurantAdmin, normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
 import { authDebug, getFirebaseErrorCode, getFirebaseErrorMessage } from "@/lib/auth-debug";
 import { persistFirebaseSession } from "@/lib/auth-session";
 
 async function getAdminRedirect(firebaseUser: FirebaseUser, requestedNext: string | null) {
   authDebug("login profile redirect start", { uid: firebaseUser.uid, email: firebaseUser.email });
-  await persistFirebaseSession(firebaseUser);
+  await persistFirebaseSession(firebaseUser, true);
   let user = null;
 
   try {
@@ -86,6 +86,7 @@ function LoginForm() {
 
     try {
       authDebug("email login submit", { email });
+      await ensureAuthPersistence();
       const credential = await signInWithEmailAndPassword(auth, email, password);
       authDebug("email login success", { uid: credential.user.uid, email: credential.user.email });
       const redirectTo = await getAdminRedirect(credential.user, searchParams.get("next"));
@@ -117,6 +118,7 @@ function LoginForm() {
     setLoading(true);
     try {
       authDebug("google login submit");
+      await ensureAuthPersistence();
       const credential = await signInWithPopup(auth, new GoogleAuthProvider());
       authDebug("google login success", { uid: credential.user.uid, email: credential.user.email });
       const redirectTo = await getAdminRedirect(credential.user, searchParams.get("next"));

@@ -10,6 +10,9 @@ import type { User } from "@/types";
 
 export const getServerAuthUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(sessionCookieName)?.value;
+  if (process.env.NODE_ENV !== "production") {
+    console.log("MIDDLEWARE TOKEN:", token ? "present" : "missing");
+  }
   if (!token) return null;
 
   try {
@@ -44,11 +47,12 @@ export async function requireAdminUser(restaurantId: string) {
 
   if (!user) {
     if (process.env.NODE_ENV !== "production") {
-      console.warn("Development auth fallback: server Admin SDK could not verify the session. Client AdminGuard will enforce access.");
+      console.warn("REDIRECT REASON:", "No verified server session yet. Client AdminGuard will wait for Firebase persistence.");
       return null;
     }
 
-    redirect(`/login?next=/admin/${restaurantId}`);
+    console.warn("REDIRECT REASON:", "No __session cookie or invalid Firebase ID token");
+    return null;
   }
 
   if (!isRestaurantAdmin(user, restaurantId)) {

@@ -12,6 +12,7 @@ export default function AdminGuard({ children, slug }: { children: React.ReactNo
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
+      console.log("ROUTE GUARD CHECK");
       console.log("ADMIN GUARD DECISION:", {
         loading,
         uid: user?.uid ?? null,
