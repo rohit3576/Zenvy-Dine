@@ -32,7 +32,14 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
   const [isCallingWaiter, setIsCallingWaiter] = useState(false);
   const [latestOrderId, setLatestOrderId] = useState<string | null>(null);
   const [latestOrderStatus, setLatestOrderStatus] = useState<string | null>(null);
-  const { addItem, updateQuantity, items: cartItems, totalItems } = useCartStore();
+  const { addItem, updateQuantity, items: cartItems, totalItems, hasHydrated } = useCartStore();
+
+  useEffect(() => {
+    Promise.resolve(useCartStore.persist.rehydrate()).catch((error) => {
+      console.error("[cart] Failed to hydrate cart storage", error);
+      useCartStore.getState().setHasHydrated(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (!restaurant.settings.themeColor) return;
@@ -73,6 +80,8 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
   }, [items, searchQuery, selectedCategory]);
 
   const getItemQuantity = (itemId: string) => {
+    if (!hasHydrated) return 0;
+
     return cartItems
       .filter((item) => item.id === itemId)
       .reduce((sum, item) => sum + item.quantity, 0);
@@ -117,7 +126,7 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
           <div className="flex items-center gap-3">
             {restaurant.logoUrl && (
               <div className="relative w-10 h-10 rounded-full overflow-hidden border">
-                <Image src={restaurant.logoUrl} alt={restaurant.name} fill className="object-cover" />
+                <Image src={restaurant.logoUrl} alt={restaurant.name} fill loading="eager" sizes="40px" className="object-cover" />
               </div>
             )}
             <div>
@@ -268,6 +277,8 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
                         src={item.imageUrl} 
                         alt={item.name} 
                         fill 
+                        loading="eager"
+                        sizes="128px"
                         className="object-cover rounded-xl"
                       />
                     </div>
@@ -289,7 +300,7 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
       </div>
 
       {/* Floating Cart Bar */}
-      {totalItems() > 0 && (
+      {hasHydrated && totalItems() > 0 && (
         <div className="fixed inset-x-4 bottom-16 z-50 mx-auto max-w-md pb-[env(safe-area-inset-bottom)]">
           <motion.div
             initial={{ y: 100, opacity: 0 }}

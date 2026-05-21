@@ -61,7 +61,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             });
             setUser(profile);
           } else {
-            setUser(null);
+            const token = await fUser.getIdTokenResult(true);
+            const claimsProfile = profileFromClaims(fUser.uid, token.claims, fUser.email ?? "");
+            authDebug("rbac profile missing, using claims fallback", {
+              uid: fUser.uid,
+              role: claimsProfile?.role ?? null,
+              restaurantSlug: claimsProfile?.restaurantSlug ?? null,
+              isActive: claimsProfile?.isActive ?? null,
+            });
+            setUser(claimsProfile);
           }
         } catch (error) {
           console.error("Failed to load user profile", {

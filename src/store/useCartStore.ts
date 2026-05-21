@@ -4,10 +4,12 @@ import { OrderItem, SelectedAddOn } from "@/types/order";
 
 interface CartStore {
   items: OrderItem[];
+  hasHydrated: boolean;
   addItem: (item: OrderItem) => void;
   removeItem: (itemId: string, addOnKey: string) => void;
   updateQuantity: (itemId: string, addOnKey: string, quantity: number) => void;
   clearCart: () => void;
+  setHasHydrated: (hasHydrated: boolean) => void;
   totalItems: () => number;
   subtotal: () => number;
 }
@@ -24,6 +26,8 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      hasHydrated: false,
+      setHasHydrated: (hasHydrated) => set({ hasHydrated }),
       addItem: (newItem) => {
         const addOnKey = getAddOnKey(newItem.addOns);
         const existingItems = get().items;
@@ -74,6 +78,14 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: "zenvy-cart-storage",
+      partialize: (state) => ({ items: state.items }),
+      skipHydration: true,
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error("[cart] Failed to restore persisted cart", error);
+        }
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

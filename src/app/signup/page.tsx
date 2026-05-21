@@ -30,14 +30,21 @@ export default function SignupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ displayName, email, password, restaurantId, onboardingCode }),
       });
-      const result = await response.json();
+      const responseText = await response.text();
+      let result: { customToken?: string; restaurantId?: string; error?: string } = {};
+
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error(response.ok ? "Onboarding returned an invalid response." : "Onboarding failed before returning JSON.");
+      }
 
       if (!response.ok || !result.customToken) {
         throw new Error(result.error || "Onboarding failed");
       }
 
       const credential = await signInWithCustomToken(auth, result.customToken);
-      await persistFirebaseSession(credential.user);
+      await persistFirebaseSession(credential.user, true);
       toast.success("Owner account created.");
       router.push(`/admin/${result.restaurantId}`);
     } catch (error) {
