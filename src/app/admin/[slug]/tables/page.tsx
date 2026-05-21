@@ -54,8 +54,8 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
         restaurantSlug: user.restaurantId,
         queryPath: "tables",
       });
-      setListenerError(`Could not load tables in realtime: ${formatFirestoreError(error)}`);
-      toast.error(`Failed to load tables: ${formatFirestoreError(error)}`);
+      setListenerError(`Table realtime updates are unavailable. ${formatFirestoreError(error)}`);
+      toast.error(`Tables unavailable: ${formatFirestoreError(error)}`);
     });
 
     return () => unsubscribe();

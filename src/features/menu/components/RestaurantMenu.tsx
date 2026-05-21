@@ -58,7 +58,7 @@ export default function RestaurantMenu({ restaurant, categories, items, tableId 
         restaurantSlug: restaurant.slug,
         tableId,
       });
-      toast.error(`Could not subscribe to order status: ${formatFirestoreError(error)}`);
+      toast.error(`Order status updates unavailable: ${formatFirestoreError(error)}`);
     });
   }, [latestOrderId, restaurant.slug, tableId]);
 

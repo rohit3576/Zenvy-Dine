@@ -86,8 +86,8 @@ export default function StaffManagementPage() {
         restaurantSlug: user.restaurantId,
         queryPath: "restaurantStaff",
       });
-      setListenerError(`Could not subscribe to staff records: ${formatFirestoreError(error)}`);
-      toast.error(`Failed to load staff: ${formatFirestoreError(error)}`);
+      setListenerError(`Staff realtime updates are unavailable. ${formatFirestoreError(error)}`);
+      toast.error(`Staff records unavailable: ${formatFirestoreError(error)}`);
     });
   }, [user?.restaurantId, user?.role, user?.uid]);
 

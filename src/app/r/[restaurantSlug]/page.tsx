@@ -7,16 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Restaurant, Table } from "@/types/restaurant";
 
 interface PageProps {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ restaurantSlug: string }>;
 }
 
 export default async function RestaurantLandingPage({ params }: PageProps) {
-  const { slug } = await params;
-  const restaurant = await getRestaurantBySlug(slug) as Restaurant | null;
+  const { restaurantSlug: requestedSlug } = await params;
+  const restaurant = await getRestaurantBySlug(requestedSlug) as Restaurant | null;
 
   if (!restaurant) notFound();
 
-  const restaurantSlug = restaurant.slug || restaurant.restaurantSlug || slug;
+  const restaurantSlug = restaurant.slug || restaurant.restaurantSlug || requestedSlug;
   const tables = await getTables(restaurantSlug) as Table[];
 
   return (
@@ -45,7 +45,7 @@ export default async function RestaurantLandingPage({ params }: PageProps) {
                 {tables.map((table) => (
                   <Link
                     key={table.id}
-                    href={`/r/${slug}/table/${table.number}`}
+                    href={`/r/${restaurantSlug}/table/${table.number}`}
                     className={buttonVariants({ variant: "outline", className: "h-12" })}
                   >
                     Table {table.number}

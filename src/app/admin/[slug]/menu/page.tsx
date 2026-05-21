@@ -83,8 +83,8 @@ export default function MenuManagementPage() {
         restaurantSlug: user.restaurantId,
         queryPath: "menuCategories",
       });
-      setCategoryError(`Could not subscribe to menu categories: ${formatFirestoreError(error)}`);
-      toast.error(`Failed to load menu categories: ${formatFirestoreError(error)}`);
+      setCategoryError(`Menu category realtime updates are unavailable. ${formatFirestoreError(error)}`);
+      toast.error(`Menu categories unavailable: ${formatFirestoreError(error)}`);
     });
   }, [user?.restaurantId, user?.role, user?.uid]);
 
@@ -119,8 +119,8 @@ export default function MenuManagementPage() {
         restaurantSlug: user.restaurantId,
         queryPath: "menuItems",
       });
-      setItemError(`Could not subscribe to menu items: ${formatFirestoreError(error)}`);
-      toast.error(`Failed to load menu items: ${formatFirestoreError(error)}`);
+      setItemError(`Menu item realtime updates are unavailable. ${formatFirestoreError(error)}`);
+      toast.error(`Menu items unavailable: ${formatFirestoreError(error)}`);
     });
   }, [user?.restaurantId, user?.role, user?.uid]);
 

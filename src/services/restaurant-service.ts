@@ -7,6 +7,10 @@ function serializable<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function isActiveTable(table: Partial<Table>) {
+  return table.isActive !== false && table.active !== false;
+}
+
 export async function getRestaurantBySlug(slug: string) {
   try {
     const db = getAdminDb();
@@ -117,28 +121,55 @@ export async function getTables(restaurantId: string) {
 export async function getTableByNumber(restaurantId: string, tableNumber: string) {
   try {
     const db = getAdminDb();
-    logFirestoreOperation("admin.query", { collection: "tables", constraints: ["restaurantSlug == value", "number == value", "isActive == true"], restaurantSlug: restaurantId, tableId: tableNumber, queryPath: "tables" });
-    let snapshot = await db.collection("tables")
-      .where("restaurantSlug", "==", restaurantId)
-      .where("number", "==", tableNumber)
-      .where("isActive", "==", true)
-      .limit(1)
-      .get();
+    logFirestoreOperation("admin.query", { collection: "tables", constraints: ["restaurantSlug/restaurantId == value", "number/tableNumber == value", "isActive == true"], restaurantSlug: restaurantId, tableId: tableNumber, queryPath: "tables" });
 
-    if (snapshot.empty) {
-      snapshot = await db.collection("tables")
-        .where("restaurantId", "==", restaurantId)
-        .where("number", "==", tableNumber)
-        .where("isActive", "==", true)
+    const directIds = [tableNumber, `${restaurantId}-table-${tableNumber}`];
+    for (const id of directIds) {
+      const direct = await db.collection("tables").doc(id).get();
+      if (!direct.exists) continue;
+
+      const data = { id: direct.id, ...direct.data() } as Table;
+      const belongsToRestaurant = data.restaurantSlug === restaurantId || data.restaurantId === restaurantId;
+      const matchesNumber = data.number === tableNumber || data.tableNumber === tableNumber;
+      if (belongsToRestaurant && matchesNumber && isActiveTable(data)) {
+        return serializable(data);
+      }
+    }
+
+    const queryShapes = [
+      { restaurantField: "restaurantSlug", tableField: "number", requireIsActive: true },
+      { restaurantField: "restaurantId", tableField: "number", requireIsActive: true },
+      { restaurantField: "restaurantSlug", tableField: "tableNumber", requireIsActive: true },
+      { restaurantField: "restaurantId", tableField: "tableNumber", requireIsActive: true },
+      { restaurantField: "restaurantSlug", tableField: "number", requireIsActive: false },
+      { restaurantField: "restaurantId", tableField: "number", requireIsActive: false },
+      { restaurantField: "restaurantSlug", tableField: "tableNumber", requireIsActive: false },
+      { restaurantField: "restaurantId", tableField: "tableNumber", requireIsActive: false },
+    ];
+
+    for (const shape of queryShapes) {
+      let tableQuery = db.collection("tables")
+        .where(shape.restaurantField, "==", restaurantId)
+        .where(shape.tableField, "==", tableNumber);
+
+      if (shape.requireIsActive) {
+        tableQuery = tableQuery.where("isActive", "==", true);
+      }
+
+      const snapshot = await tableQuery
         .limit(1)
         .get();
+
+      if (!snapshot.empty) {
+        const table = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Table;
+        if (isActiveTable(table)) return serializable(table);
+      }
     }
 
-    if (snapshot.empty && process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurantId)) {
+    if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurantId)) {
       return serializable(demoTables.find((table) => table.number === tableNumber) || null);
     }
-    if (snapshot.empty) return null;
-    return serializable({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Table);
+    return null;
   } catch (error) {
     if (process.env.NODE_ENV !== "production" && isDemoRestaurant(restaurantId)) {
       return serializable(demoTables.find((table) => table.number === tableNumber) || null);

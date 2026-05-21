@@ -26,12 +26,38 @@ export function getFirestoreIndexUrl(error: unknown) {
   return message.match(/https:\/\/console\.firebase\.google\.com\/[^\s)]+/)?.[0] ?? null;
 }
 
+function isMissingIndexError(error: unknown) {
+  const code = getFirestoreErrorCode(error).toLowerCase();
+  const message = getFirestoreErrorMessage(error).toLowerCase();
+
+  return (
+    code.includes("failed-precondition") ||
+    message.includes("requires an index") ||
+    Boolean(getFirestoreIndexUrl(error))
+  );
+}
+
 export function formatFirestoreError(error: unknown) {
   const code = getFirestoreErrorCode(error);
   const message = getFirestoreErrorMessage(error);
-  const indexUrl = getFirestoreIndexUrl(error);
 
-  return indexUrl ? `${code}: ${message} Missing index: ${indexUrl}` : `${code}: ${message}`;
+  if (isMissingIndexError(error)) {
+    return "Firestore index is missing or still building. Please try again shortly.";
+  }
+
+  if (code.includes("permission-denied") || message.toLowerCase().includes("permission")) {
+    return "You do not have permission to access this data.";
+  }
+
+  if (code.includes("unauthenticated")) {
+    return "Please sign in again.";
+  }
+
+  if (code.includes("unavailable")) {
+    return "Realtime connection is unavailable. Check your connection and retry.";
+  }
+
+  return "Firestore request failed. Check the console for details.";
 }
 
 export function logFirestoreOperation(operation: string, meta: FirestoreDebugMeta = {}) {
@@ -47,9 +73,7 @@ export function logFirestoreError(operation: string, error: unknown, meta: Fires
     missingIndexUrl: getFirestoreIndexUrl(error),
   };
 
-  if (isDevelopment()) {
-    console.error(`[firestore:${operation}:error]`, details);
-  }
+  console.error(`[firestore:${operation}:error]`, details);
 
   return details;
 }

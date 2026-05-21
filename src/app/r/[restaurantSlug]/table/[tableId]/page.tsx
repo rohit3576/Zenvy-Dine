@@ -6,18 +6,19 @@ import { Category, MenuItem } from "@/types/menu";
 
 interface PageProps {
   params: Promise<{
-    slug: string;
+    restaurantSlug: string;
     tableId: string;
   }>;
 }
 
 export default async function TableMenuPage({ params }: PageProps) {
-  const { slug, tableId } = await params;
+  const { restaurantSlug: requestedSlug, tableId } = await params;
 
-  const restaurant = await getRestaurantBySlug(slug) as Restaurant | null;
+  const restaurant = await getRestaurantBySlug(requestedSlug) as Restaurant | null;
   if (!restaurant) notFound();
 
-  const restaurantSlug = restaurant.slug || restaurant.restaurantSlug || slug;
+  const restaurantSlug = restaurant.slug || restaurant.restaurantSlug || requestedSlug;
+  const normalizedRestaurant = { ...restaurant, slug: restaurantSlug, restaurantSlug };
   const table = await getTableByNumber(restaurantSlug, tableId);
   if (!table) notFound();
 
@@ -28,7 +29,7 @@ export default async function TableMenuPage({ params }: PageProps) {
 
   return (
     <RestaurantMenu 
-      restaurant={restaurant} 
+      restaurant={normalizedRestaurant} 
       categories={categories as Category[]} 
       items={items as MenuItem[]} 
       tableId={tableId}

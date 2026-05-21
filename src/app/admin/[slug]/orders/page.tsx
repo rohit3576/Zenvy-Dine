@@ -77,7 +77,7 @@ export default function LiveOrdersPage() {
         restaurantSlug: user.restaurantId,
         queryPath: "orders",
       });
-      toast.error(`Failed to load live orders: ${formatFirestoreError(error)}`);
+      toast.error(`Live orders unavailable: ${formatFirestoreError(error)}`);
       setLoading(false);
     });
 

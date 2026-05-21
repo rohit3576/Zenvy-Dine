@@ -55,8 +55,8 @@ export default function KDSPage() {
         restaurantSlug: user.restaurantId,
         queryPath: "orders",
       });
-      setListenerError(`Could not subscribe to kitchen orders: ${formatFirestoreError(error)}`);
-      toast.error(`Kitchen realtime updates failed: ${formatFirestoreError(error)}`);
+      setListenerError(`Kitchen realtime updates are unavailable. ${formatFirestoreError(error)}`);
+      toast.error(`Kitchen updates unavailable: ${formatFirestoreError(error)}`);
     });
 
     return () => unsubscribe();

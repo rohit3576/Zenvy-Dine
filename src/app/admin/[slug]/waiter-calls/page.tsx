@@ -60,8 +60,8 @@ export default function WaiterCallsPage() {
         restaurantSlug: user.restaurantId,
         queryPath: "waiterCalls",
       });
-      setListenerError(`Could not subscribe to waiter calls: ${formatFirestoreError(error)}`);
-      toast.error(`Failed to load waiter calls: ${formatFirestoreError(error)}`);
+      setListenerError(`Waiter call realtime updates are unavailable. ${formatFirestoreError(error)}`);
+      toast.error(`Waiter calls unavailable: ${formatFirestoreError(error)}`);
     });
   }, [user?.restaurantId, user?.role, user?.uid]);
 
