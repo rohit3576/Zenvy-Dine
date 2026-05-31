@@ -28,6 +28,7 @@ import { Category, MenuItem } from "@/types/menu";
 import { AdminAlert, AdminEmptyState } from "../_components/AdminState";
 import { demoCategories, demoMenuItems, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
 import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
+import { PageHeader, StatusBadge } from "@/components/ui/premium";
 
 const defaultCategory = "none";
 
@@ -391,15 +392,20 @@ export default function MenuManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Menu Management</h2>
-        <p className="text-muted-foreground">Manage categories, menu items, pricing, images, and availability.</p>
-      </div>
+      <PageHeader
+        eyebrow="Menu"
+        title="Menu Management"
+        description="Manage categories, menu items, pricing, imagery, and realtime availability."
+        action={<StatusBadge tone="green">{items.length} items</StatusBadge>}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Categories</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Categories</CardTitle>
+              <StatusBadge tone="blue">{categories.length}</StatusBadge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
@@ -411,7 +417,7 @@ export default function MenuManagementPage() {
             {categoryError && <AdminAlert>{categoryError}</AdminAlert>}
             <div className="space-y-2">
               {categories.map((category) => (
-                <div key={category.id} className="flex items-center justify-between rounded-lg border p-3">
+                <div key={category.id} className="flex items-center justify-between rounded-2xl border border-black/[0.06] bg-slate-50 p-3">
                   <div>
                     <p className="font-medium">{category.name}</p>
                     <p className="text-xs text-muted-foreground">Order {category.order}</p>
@@ -436,7 +442,8 @@ export default function MenuManagementPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Add Menu Item</CardTitle>
+            <CardTitle>Add Menu Item</CardTitle>
+            <p className="text-sm text-muted-foreground">Create polished menu cards for the customer ordering flow.</p>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <Input placeholder="Item name" value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} />
@@ -484,12 +491,15 @@ export default function MenuManagementPage() {
 
           <Card>
             <CardHeader>
+            <div className="flex items-center justify-between gap-3">
               <CardTitle className="flex items-center gap-2"><Utensils className="h-5 w-5" /> Menu Items</CardTitle>
+              <StatusBadge tone="green">Realtime</StatusBadge>
+            </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {itemError && <AdminAlert>{itemError}</AdminAlert>}
               {sortedItems.map((item) => (
-                <div key={item.id} className="grid gap-4 rounded-xl border p-4 md:grid-cols-[96px_1fr_auto]">
+                <div key={item.id} className="grid gap-4 rounded-2xl border border-black/[0.06] bg-slate-50 p-4 transition-colors hover:bg-white md:grid-cols-[96px_1fr_auto]">
                   <div className="relative h-24 w-24 overflow-hidden rounded-lg bg-muted">
                     {item.imageUrl ? <Image src={item.imageUrl} alt={item.name} fill className="object-cover" /> : null}
                   </div>

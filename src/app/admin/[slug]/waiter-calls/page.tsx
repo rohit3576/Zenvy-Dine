@@ -5,13 +5,13 @@ import { collection, doc, onSnapshot, orderBy, query, updateDoc, where } from "f
 import { BellRing, CheckCircle2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
 import { isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
 import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui/premium";
 
 interface WaiterCall {
   id: string;
@@ -89,17 +89,16 @@ export default function WaiterCallsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <BellRing className="h-7 w-7" />
-          Waiter Calls
-        </h2>
-        <Badge variant="outline">{calls.length} active</Badge>
-      </div>
+      <PageHeader
+        eyebrow="Service"
+        title="Waiter Calls"
+        description="Respond to guest assistance requests as they arrive from table QR ordering."
+        action={<StatusBadge tone={calls.length > 0 ? "amber" : "green"}>{calls.length} active</StatusBadge>}
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {listenerError && (
-          <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className="col-span-full rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {listenerError}
           </div>
         )}
@@ -109,14 +108,14 @@ export default function WaiterCallsPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle>Table {call.tableNumber}</CardTitle>
-                <Badge>{call.status}</Badge>
+                <StatusBadge tone={call.status === "OPEN" ? "amber" : "blue"}>{call.status}</StatusBadge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Requested {call.createdAt ? formatDistanceToNow(call.createdAt.toDate(), { addSuffix: true }) : "just now"}
               </p>
-              <Button className="w-full" onClick={() => closeCall(call.id)}>
+              <Button variant="premium" className="w-full" onClick={() => closeCall(call.id)}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Mark attended
               </Button>
@@ -125,8 +124,12 @@ export default function WaiterCallsPage() {
         ))}
 
         {!listenerError && calls.length === 0 && (
-          <div className="col-span-full rounded-xl border-2 border-dashed py-16 text-center text-muted-foreground">
-            No active waiter calls.
+          <div className="col-span-full">
+            <EmptyState
+              icon={BellRing}
+              title="No active waiter calls"
+              description="Guest assistance requests will appear here instantly."
+            />
           </div>
         )}
       </div>

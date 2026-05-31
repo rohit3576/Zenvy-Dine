@@ -11,6 +11,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { db } from "@/lib/firebase";
 import { demoRestaurant, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
 import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
+import { PageHeader, StatusBadge } from "@/components/ui/premium";
 
 export default function RestaurantSettingsPage() {
   const { user } = useAuth();
@@ -105,10 +106,12 @@ export default function RestaurantSettingsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Restaurant Settings</h2>
-        <p className="text-muted-foreground">Customize customer ordering, billing, and notifications.</p>
-      </div>
+      <PageHeader
+        eyebrow="Settings"
+        title="Restaurant Settings"
+        description="Customize customer ordering colors, billing rates, and service notifications."
+        action={<StatusBadge tone="blue">Production config</StatusBadge>}
+      />
 
       <Card>
         <CardHeader>
@@ -119,7 +122,7 @@ export default function RestaurantSettingsPage() {
         </CardHeader>
         <CardContent className="grid gap-5 sm:grid-cols-2">
           {loadError && (
-            <div className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="sm:col-span-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               {loadError}
             </div>
           )}
@@ -150,7 +153,7 @@ export default function RestaurantSettingsPage() {
             <Input value={notificationPhone} onChange={(event) => setNotificationPhone(event.target.value)} placeholder="+91 9876543210" />
           </div>
           <div className="sm:col-span-2 flex justify-end">
-            <Button onClick={saveSettings} disabled={saving}>
+            <Button variant="premium" onClick={saveSettings} disabled={saving}>
               <Save className="mr-2 h-4 w-4" />
               Save settings
             </Button>

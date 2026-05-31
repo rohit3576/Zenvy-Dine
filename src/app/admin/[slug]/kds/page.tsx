@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { collection, query, where, onSnapshot, orderBy, doc, updateDoc } from "firebase/firestore";
+import { motion } from "framer-motion";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
 import { Order } from "@/types/order";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, CookingPot } from "lucide-react";
+import { CheckCircle2, Clock, CookingPot, Flame, UtensilsCrossed } from "lucide-react";
 import { isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
 import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui/premium";
 
 export default function KDSPage() {
   const { user } = useAuth();
@@ -84,76 +86,91 @@ export default function KDSPage() {
   };
 
   return (
-    <div className="h-full flex flex-col space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold flex items-center gap-2">
-          <CookingPot className="w-8 h-8" /> Kitchen Display System
-        </h2>
-        <div className="text-sm font-medium text-muted-foreground bg-muted px-4 py-2 rounded-full">
-          {orders.length} Active Orders in Kitchen
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Kitchen"
+        title="Kitchen Display System"
+        description="Prioritize confirmed and preparing orders with large, touch-friendly production cards."
+        action={<StatusBadge tone={orders.length > 0 ? "amber" : "green"}>{orders.length} active</StatusBadge>}
+      />
+
+      {listenerError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {listenerError}
         </div>
-      </div>
+      )}
 
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-max">
-        {listenerError && (
-          <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {listenerError}
-          </div>
-        )}
-
-        {orders.map((order) => (
-          <Card key={order.id} className="h-fit border-l-4 border-l-orange-500">
-            <CardHeader className="py-3 bg-muted/20">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">T-{order.tableNumber}</CardTitle>
-                <div className="flex items-center text-xs text-muted-foreground gap-1">
-                  <Clock className="w-3 h-3" />
-                  {/* Simplistic timer could be added here */}
-                  Active
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="py-4 space-y-4">
-              <div className="space-y-3">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="flex flex-col">
-                    <div className="flex justify-between font-bold">
-                      <span>{item.quantity} x {item.name}</span>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {orders.map((order, index) => (
+          <motion.div
+            key={order.id}
+            layout
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: Math.min(index * 0.04, 0.2) }}
+          >
+            <Card className="h-full overflow-hidden border-l-4 border-l-amber-400">
+              <CardHeader className="border-b border-black/[0.06] bg-slate-50 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-5xl font-semibold tracking-tight">T-{order.tableNumber}</CardTitle>
+                    <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" />
+                      Active
                     </div>
-                    {item.addOns.length > 0 && (
-                      <div className="text-xs text-muted-foreground pl-4">
-                        {item.addOns.map(a => a.optionName).join(", ")}
-                      </div>
-                    )}
                   </div>
-                ))}
-              </div>
+                  <StatusBadge tone={order.status === "CONFIRMED" ? "blue" : "purple"}>{order.status}</StatusBadge>
+                </div>
+              </CardHeader>
+              <CardContent className="flex h-full flex-col p-5">
+                <div className="flex-1 space-y-4">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
+                      <div className="flex justify-between gap-3 font-semibold">
+                        <span>{item.quantity} x {item.name}</span>
+                      </div>
+                      {item.addOns.length > 0 && (
+                        <div className="mt-2 text-xs leading-5 text-muted-foreground">
+                          {item.addOns.map(a => a.optionName).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
 
-              <div className="flex gap-2 pt-4">
-                {order.status === "CONFIRMED" ? (
-                  <Button 
-                    className="w-full bg-orange-500 hover:bg-orange-600"
-                    onClick={() => setStatus(order.id, "PREPARING")}
-                  >
-                    START COOKING
-                  </Button>
-                ) : (
-                  <Button 
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={() => setStatus(order.id, "READY")}
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" /> MARK READY
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                <div className="pt-5">
+                  {order.status === "CONFIRMED" ? (
+                    <Button
+                      variant="premium"
+                      className="h-12 w-full rounded-2xl"
+                      onClick={() => setStatus(order.id, "PREPARING")}
+                    >
+                      <Flame className="mr-2 h-4 w-4" />
+                      Start cooking
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="success"
+                      className="h-12 w-full rounded-2xl"
+                      onClick={() => setStatus(order.id, "READY")}
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Mark ready
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
 
-        {orders.length === 0 && (
-          <div className="col-span-full h-[60vh] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed rounded-2xl">
-            <CookingPot className="w-16 h-16 opacity-20 mb-4" />
-            <p className="text-lg font-medium">All caught up! No pending orders to cook.</p>
+        {!listenerError && orders.length === 0 && (
+          <div className="col-span-full">
+            <EmptyState
+              icon={orders.length === 0 ? CookingPot : UtensilsCrossed}
+              title="Kitchen is clear"
+              description="Confirmed and preparing orders will appear here automatically."
+            />
           </div>
         )}
       </div>

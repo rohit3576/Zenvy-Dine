@@ -1,38 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  orderBy, 
-  doc, 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+  doc,
   updateDoc,
   getDoc
 } from "firebase/firestore";
+import { motion } from "framer-motion";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/providers/AuthProvider";
 import { Order, OrderStatus } from "@/types/order";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { Loader2, UtensilsCrossed, ReceiptText, MessageCircle } from "lucide-react";
+import { UtensilsCrossed, ReceiptText, MessageCircle, Radio } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OrderReceipt } from "@/components/common/OrderReceipt";
 import { Restaurant } from "@/types/restaurant";
 import { notificationService } from "@/services/notification-service";
 import { demoRestaurant, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
 import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui/premium";
+
+type BadgeTone = "neutral" | "green" | "amber" | "blue" | "red" | "purple";
 
 export default function LiveOrdersPage() {
   const { user } = useAuth();
@@ -125,74 +128,104 @@ export default function LiveOrdersPage() {
     }
   };
 
-  const getStatusColor = (status: OrderStatus) => {
+  const getStatusTone = (status: OrderStatus): BadgeTone => {
     switch (status) {
-      case "PENDING": return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "CONFIRMED": return "bg-blue-100 text-blue-800 border-blue-200";
-      case "PREPARING": return "bg-purple-100 text-purple-800 border-purple-200";
-      case "READY": return "bg-green-100 text-green-800 border-green-200";
-      case "SERVED": return "bg-teal-100 text-teal-800 border-teal-200";
-      case "COMPLETED": return "bg-gray-100 text-gray-800 border-gray-200";
-      case "CANCELLED": return "bg-red-100 text-red-800 border-red-200";
-      default: return "bg-gray-100 text-gray-800";
+      case "PENDING": return "amber";
+      case "CONFIRMED": return "blue";
+      case "PREPARING": return "purple";
+      case "READY": return "green";
+      case "SERVED": return "green";
+      case "COMPLETED": return "neutral";
+      case "CANCELLED": return "red";
+      default: return "neutral";
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Orders"
+          title="Live Orders"
+          description="Connecting to the dining room stream."
+          action={<StatusBadge tone="blue">Loading</StatusBadge>}
+        />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3].map((item) => (
+            <Card key={item} className="h-64 animate-pulse">
+              <CardContent className="h-full p-5">
+                <div className="h-5 w-24 rounded bg-slate-200" />
+                <div className="mt-8 space-y-3">
+                  <div className="h-3 rounded bg-slate-200" />
+                  <div className="h-3 w-4/5 rounded bg-slate-200" />
+                  <div className="h-3 w-2/3 rounded bg-slate-200" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Live Orders</h2>
-        <Badge variant="outline" className="px-3 py-1 animate-pulse border-green-500 text-green-600">
-          Realtime Updates Active
-        </Badge>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Realtime"
+        title="Live Orders"
+        description="Review incoming orders, update kitchen status, print receipts, and share WhatsApp summaries."
+        action={
+          <StatusBadge tone="green">
+            <Radio className="h-3 w-3 animate-pulse" />
+            Active
+          </StatusBadge>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {orders.map((order) => (
-          <Card key={order.id} className="overflow-hidden border-2 transition-all hover:border-primary/50">
-            <CardHeader className="bg-muted/30 pb-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-xl">Table {order.tableNumber}</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {order.createdAt ? format(order.createdAt.toDate(), "hh:mm a") : "Just now"}
-                  </p>
-                </div>
-                <Badge className={getStatusColor(order.status)}>
-                  {order.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <div className="space-y-2">
-                {order.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <span className="font-medium">{item.quantity}x {item.name}</span>
-                    <span className="text-muted-foreground font-mono">Rs. {item.totalPrice}</span>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {orders.map((order, index) => (
+          <motion.div
+            key={order.id}
+            layout
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: Math.min(index * 0.035, 0.18) }}
+          >
+            <Card className="h-full overflow-hidden">
+              <CardHeader className="border-b border-black/[0.06] bg-slate-50">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-4xl font-semibold tracking-tight">Table {order.tableNumber}</CardTitle>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {order.createdAt ? format(order.createdAt.toDate(), "hh:mm a") : "Just now"}
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <StatusBadge tone={getStatusTone(order.status)}>
+                    {order.status}
+                  </StatusBadge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5 p-5">
+                <div className="space-y-3">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between gap-4 text-sm">
+                      <span className="font-medium text-foreground">{item.quantity}x {item.name}</span>
+                      <span className="shrink-0 font-mono text-muted-foreground">Rs. {item.totalPrice}</span>
+                    </div>
+                  ))}
+                </div>
 
-              <div className="flex justify-between pt-2 border-t font-bold">
-                <span>Total Amount</span>
-                <span>Rs. {order.total}</span>
-              </div>
+                <div className="flex justify-between rounded-2xl border border-black/[0.06] bg-slate-50 p-4 font-semibold">
+                  <span>Total</span>
+                  <span>Rs. {order.total}</span>
+                </div>
 
-              <div className="pt-2">
                 <div className="grid grid-cols-[1fr_auto_auto] gap-2">
-                  <Select 
-                    value={order.status} 
+                  <Select
+                    value={order.status}
                     onValueChange={(val) => updateOrderStatus(order.id, val as OrderStatus)}
                   >
-                    <SelectTrigger className="w-full font-bold">
+                    <SelectTrigger className="h-11 w-full rounded-xl border-black/[0.08] bg-white font-semibold">
                       <SelectValue placeholder="Update Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -205,12 +238,13 @@ export default function LiveOrdersPage() {
                       <SelectItem value="CANCELLED">Cancel Order</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" size="icon" onClick={() => setReceiptOrder(order)} title="Print receipt">
+                  <Button variant="glass" size="icon" className="h-11 w-11 rounded-xl" onClick={() => setReceiptOrder(order)} title="Print receipt">
                     <ReceiptText className="h-4 w-4" />
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="glass"
                     size="icon"
+                    className="h-11 w-11 rounded-xl"
                     disabled={!restaurant}
                     onClick={() => restaurant && window.open(notificationService.getWhatsAppOrderLink(order, restaurant), "_blank")}
                     title="Send WhatsApp order notification"
@@ -218,26 +252,24 @@ export default function LiveOrdersPage() {
                     <MessageCircle className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
 
         {orders.length === 0 && (
-          <div className="col-span-full py-20 text-center space-y-4 bg-muted/20 rounded-xl border-2 border-dashed">
-            <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-              <UtensilsCrossed className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-xl font-bold">No active orders</p>
-              <p className="text-muted-foreground">New orders from customers will appear here in real-time.</p>
-            </div>
+          <div className="col-span-full">
+            <EmptyState
+              icon={UtensilsCrossed}
+              title="No active orders"
+              description="New customer orders will appear here automatically as soon as guests place them."
+            />
           </div>
         )}
       </div>
 
       <Dialog open={!!receiptOrder} onOpenChange={(open) => !open && setReceiptOrder(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-black/[0.08] bg-popover">
           <DialogHeader>
             <DialogTitle>Order Receipt</DialogTitle>
           </DialogHeader>

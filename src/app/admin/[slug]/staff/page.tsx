@@ -26,6 +26,7 @@ import { Role } from "@/types";
 import { AdminAlert, AdminEmptyState } from "../_components/AdminState";
 import { demoStaff, isDemoRestaurant, shouldUseLocalDemoFallback } from "@/data/demo-restaurant";
 import { formatFirestoreError, logFirestoreError, logFirestoreOperation } from "@/lib/firestore-debug";
+import { PageHeader, StatusBadge } from "@/components/ui/premium";
 
 type StaffMember = {
   id: string;
@@ -250,10 +251,12 @@ export default function StaffManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Staff Management</h2>
-        <p className="text-muted-foreground">Invite staff, assign roles, and enable or disable access.</p>
-      </div>
+      <PageHeader
+        eyebrow="Team"
+        title="Staff Management"
+        description="Invite staff, assign roles, and keep access scoped to restaurant operations."
+        action={<StatusBadge tone={canManageStaff ? "green" : "amber"}>{canManageStaff ? "Manage" : "View only"}</StatusBadge>}
+      />
 
       {!canManageStaff && (
         <AdminAlert>Your role can view staff records but cannot manage users.</AdminAlert>
@@ -262,6 +265,7 @@ export default function StaffManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Invite Staff</CardTitle>
+          <p className="text-sm text-muted-foreground">Create role-scoped admin access without leaving the console.</p>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-[1fr_1fr_220px_auto]">
           <Input placeholder="Name" value={inviteForm.displayName} onChange={(event) => setInviteForm({ ...inviteForm, displayName: event.target.value })} />
@@ -286,11 +290,11 @@ export default function StaffManagementPage() {
         <CardContent className="space-y-3">
           {listenerError && <AdminAlert>{listenerError}</AdminAlert>}
           {sortedStaff.map((member) => (
-            <div key={member.id} className="grid gap-3 rounded-xl border p-4 md:grid-cols-[1fr_220px_auto_auto] md:items-center">
+            <div key={member.id} className="grid gap-3 rounded-2xl border border-black/[0.06] bg-slate-50 p-4 transition-colors hover:bg-white md:grid-cols-[1fr_220px_auto_auto] md:items-center">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-bold">{member.displayName}</p>
-                  <Badge variant={member.isActive ? "secondary" : "outline"}>
+                  <Badge variant={member.isActive ? "secondary" : "outline"} className={member.isActive ? "bg-emerald-50 text-emerald-700" : ""}>
                     {member.isActive ? "Enabled" : "Disabled"}
                   </Badge>
                 </div>

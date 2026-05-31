@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/useCartStore";
 import { Restaurant } from "@/types/restaurant";
-import { Plus, Minus, ShoppingBag, CreditCard, Banknote } from "lucide-react";
+import { Plus, Minus, ShoppingBag, CreditCard, Banknote, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { db } from "@/lib/firebase";
@@ -30,6 +31,8 @@ export default function CartDrawer({ restaurant, tableId, onOrderPlaced }: CartD
   const grandTotal = subtotal() + taxAmount + serviceCharge;
   const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
   const isOnlinePaymentConfigured = Boolean(razorpayKey && !razorpayKey.startsWith("your_"));
+  const currency = restaurant.settings.currency === "INR" || !restaurant.settings.currency ? "Rs." : restaurant.settings.currency;
+  const formatMoney = (amount: number) => `${currency} ${Number(amount || 0).toFixed(amount % 1 === 0 ? 0 : 2)}`;
 
   const loadRazorpay = () =>
     new Promise<boolean>((resolve) => {
@@ -85,7 +88,7 @@ export default function CartDrawer({ restaurant, tableId, onOrderPlaced }: CartD
       });
       const docRef = await addDoc(collection(db, "orders"), orderData);
       onOrderPlaced?.(docRef.id);
-      
+
       if (method === "ONLINE") {
         toast.info("Initializing secure payment...");
         const loaded = await loadRazorpay();
@@ -179,105 +182,128 @@ export default function CartDrawer({ restaurant, tableId, onOrderPlaced }: CartD
     <Sheet>
       <SheetTrigger
         render={
-          <Button className="w-full h-14 rounded-2xl shadow-2xl flex items-center justify-between px-6 bg-green-600 hover:bg-green-700 text-white" />
+          <Button className="h-16 w-full rounded-2xl border border-blue-500 bg-primary px-5 text-primary-foreground shadow-[0_12px_30px_rgba(10,132,255,0.26)] transition-transform active:scale-[0.98]" />
         }
       >
-          <div className="flex flex-col items-start">
-            <span className="text-[10px] uppercase font-bold opacity-80">{totalItems()} Items</span>
-            <span className="text-lg font-bold">Rs. {subtotal()}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold">VIEW CART</span>
-            <ShoppingBag className="w-5 h-5" />
-          </div>
+        <div className="flex min-w-0 flex-col items-start">
+          <span className="text-[10px] font-bold uppercase tracking-[0.22em] opacity-75">{totalItems()} items</span>
+          <span className="truncate text-lg font-semibold">{formatMoney(subtotal())}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide">
+          Cart
+          <ShoppingBag className="h-5 w-5" />
+        </div>
       </SheetTrigger>
-      <SheetContent side="bottom" className="mx-auto h-[90vh] max-h-[720px] max-w-md rounded-t-[2rem] px-6 pb-10">
-        <SheetHeader className="pb-6">
-          <SheetTitle className="text-2xl font-bold flex items-center gap-2">
-            Your Cart <ShoppingBag className="w-5 h-5" />
+
+      <SheetContent
+        side="bottom"
+        className="mx-auto h-[92vh] max-h-[760px] max-w-md rounded-t-[2rem] border-black/[0.08] bg-popover px-0 pb-0 shadow-[0_-18px_54px_rgba(15,23,42,0.18)]"
+      >
+        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-slate-200" />
+        <SheetHeader className="px-6 pb-2 pt-5">
+          <SheetTitle className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+              <ShoppingBag className="h-5 w-5" />
+            </span>
+            Your cart
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex flex-col h-full">
-          {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto space-y-6 pr-2 no-scrollbar">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-4">
-                <div className="flex-1 space-y-1">
-                  <h4 className="font-bold text-base">{item.name}</h4>
-                  <p className="text-sm text-muted-foreground">Rs. {item.price}</p>
-                </div>
-                <div className="flex items-center bg-muted rounded-full h-9 px-1">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-7 w-7 rounded-full"
-                    onClick={() => updateQuantity(item.id, "", item.quantity - 1)}
-                  >
-                    <Minus className="w-3 h-3" />
-                  </Button>
-                  <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-7 w-7 rounded-full"
-                    onClick={() => updateQuantity(item.id, "", item.quantity + 1)}
-                  >
-                    <Plus className="w-3 h-3" />
-                  </Button>
-                </div>
-                <div className="text-right font-bold w-16">
-                  Rs. {item.totalPrice}
-                </div>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-3 pt-2 no-scrollbar">
+            <AnimatePresence initial={false}>
+              {items.map((item) => (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="mb-3 rounded-2xl border border-black/[0.06] bg-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="line-clamp-2 font-semibold leading-5">{item.name}</h4>
+                      <p className="mt-1 text-sm text-muted-foreground">{formatMoney(item.price)}</p>
+                    </div>
+                    <div className="text-right text-sm font-semibold">{formatMoney(item.totalPrice)}</div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="flex h-10 items-center rounded-full bg-white px-1 ring-1 ring-black/[0.08]">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
+                        onClick={() => updateQuantity(item.id, "", item.quantity - 1)}
+                        aria-label={`Decrease ${item.name}`}
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </Button>
+                      <span className="w-8 text-center text-sm font-bold">{item.quantity}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full"
+                        onClick={() => updateQuantity(item.id, "", item.quantity + 1)}
+                        aria-label={`Increase ${item.name}`}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Table {tableId}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          <div className="border-t border-black/[0.06] bg-slate-50 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5">
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Subtotal</span>
+                <span>{formatMoney(subtotal())}</span>
               </div>
-            ))}
-          </div>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>GST ({restaurant.settings.taxPercentage}%)</span>
+                <span>{formatMoney(taxAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Service charge ({restaurant.settings.serviceChargePercentage}%)</span>
+                <span>{formatMoney(serviceCharge)}</span>
+              </div>
+              <Separator className="bg-black/[0.08]" />
+              <div className="flex justify-between text-xl font-semibold">
+                <span>Total</span>
+                <span>{formatMoney(grandTotal)}</span>
+              </div>
+            </div>
 
-          {/* Bill Summary */}
-          <div className="py-6 space-y-3">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Subtotal</span>
-              <span>Rs. {subtotal()}</span>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {restaurant.paymentSettings.payAtCounterEnabled && (
+                <Button
+                  variant="glass"
+                  className="h-14 rounded-2xl"
+                  disabled={isPlacingOrder}
+                  onClick={() => handlePlaceOrder("CASH")}
+                >
+                  {isPlacingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Banknote className="mr-2 h-5 w-5" />}
+                  Counter
+                </Button>
+              )}
+              {restaurant.paymentSettings.razorpayEnabled && (
+                <Button
+                  variant="premium"
+                  className="h-14 rounded-2xl"
+                  disabled={isPlacingOrder || !isOnlinePaymentConfigured}
+                  onClick={() => handlePlaceOrder("ONLINE")}
+                  title={!isOnlinePaymentConfigured ? "Set NEXT_PUBLIC_RAZORPAY_KEY_ID to enable online payments" : "Pay online"}
+                >
+                  {isPlacingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-5 w-5" />}
+                  Online
+                </Button>
+              )}
             </div>
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>GST ({restaurant.settings.taxPercentage}%)</span>
-              <span>Rs. {taxAmount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Service Charge ({restaurant.settings.serviceChargePercentage}%)</span>
-              <span>Rs. {serviceCharge.toFixed(2)}</span>
-            </div>
-            <Separator className="my-2" />
-            <div className="flex justify-between font-bold text-xl">
-              <span>Grand Total</span>
-              <span>Rs. {grandTotal.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="grid grid-cols-2 gap-4">
-            {restaurant.paymentSettings.payAtCounterEnabled && (
-              <Button 
-                variant="outline" 
-                className="h-14 rounded-xl flex flex-col items-center justify-center gap-1"
-                disabled={isPlacingOrder}
-                onClick={() => handlePlaceOrder("CASH")}
-              >
-                <Banknote className="w-5 h-5" />
-                <span className="text-[10px] font-bold">PAY AT COUNTER</span>
-              </Button>
-            )}
-            {restaurant.paymentSettings.razorpayEnabled && (
-              <Button 
-                className="h-14 rounded-xl flex flex-col items-center justify-center gap-1 bg-primary"
-                disabled={isPlacingOrder || !isOnlinePaymentConfigured}
-                onClick={() => handlePlaceOrder("ONLINE")}
-                title={!isOnlinePaymentConfigured ? "Set NEXT_PUBLIC_RAZORPAY_KEY_ID to enable online payments" : "Pay online"}
-              >
-                <CreditCard className="w-5 h-5" />
-                <span className="text-[10px] font-bold">PAY ONLINE</span>
-              </Button>
-            )}
           </div>
         </div>
       </SheetContent>

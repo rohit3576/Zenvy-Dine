@@ -42,12 +42,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">
+    <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth">
+      <body className="min-h-full flex flex-col bg-[#f5f5f7] text-foreground">
         <AuthProvider>
           {children}
           <PWARegister />
-          <Toaster position="top-center" richColors />
+          <Toaster
+            position="top-center"
+            richColors
+            toastOptions={{
+              className: "premium-panel text-foreground",
+            }}
+          />
         </AuthProvider>
       </body>
     </html>

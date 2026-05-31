@@ -20,7 +20,9 @@ export default async function TableMenuPage({ params }: PageProps) {
   const restaurantSlug = restaurant.slug || restaurant.restaurantSlug || requestedSlug;
   const normalizedRestaurant = { ...restaurant, slug: restaurantSlug, restaurantSlug };
   const table = await getTableByNumber(restaurantSlug, tableId);
-  if (!table) notFound();
+  if (!table) {
+    console.warn(`[customer-menu] Table ${tableId} was not found for ${restaurantSlug}; rendering the QR ordering flow with the requested table number.`);
+  }
 
   const [categories, items] = await Promise.all([
     getCategories(restaurantSlug),

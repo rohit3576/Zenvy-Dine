@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "functions/lib/**",
+    ".chrome-ui-verify/**",
     "next-env.d.ts",
   ]),
 ]);

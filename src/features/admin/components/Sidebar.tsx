@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { 
   LayoutDashboard, 
   Utensils, 
@@ -11,7 +12,8 @@ import {
   BellRing,
   Settings, 
   Users,
-  LogOut
+  LogOut,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -78,45 +80,84 @@ export function Sidebar({ slug }: SidebarProps) {
     },
   ];
 
+  const logout = async () => {
+    await signOut(auth);
+    clearFirebaseSession();
+    router.replace("/login");
+  };
+
   return (
-    <div className="w-64 border-r bg-card flex flex-col h-screen sticky top-0">
-      <div className="p-6">
-        <h1 className="text-2xl font-bold text-primary">Zenvy Dine</h1>
-        <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider font-bold">Admin Panel</p>
-      </div>
+    <>
+      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-black/[0.06] bg-[#f5f5f7] p-4 lg:flex">
+        <div className="mb-6 rounded-2xl border border-black/[0.06] bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(10,132,255,0.22)]">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Zenvy Dine</h1>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+                Operations
+              </p>
+            </div>
+          </div>
+        </div>
 
-      <nav className="flex-1 px-4 space-y-2">
-        {routes.map((route) => (
-          <Link
-            key={route.href}
-            href={route.href}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-              route.active 
-                ? "bg-primary text-primary-foreground" 
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            <route.icon className="w-5 h-5" />
-            {route.label}
-          </Link>
-        ))}
-      </nav>
+        <nav className="flex-1 space-y-1.5">
+          {routes.map((route) => (
+            <Link
+              key={route.href}
+              href={route.href}
+              className={cn(
+                "group relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold transition-colors duration-150",
+                route.active
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:bg-white hover:text-foreground"
+              )}
+            >
+              {route.active && (
+                <motion.span
+                  layoutId="admin-active-nav"
+                  className="absolute inset-0 rounded-xl border border-blue-200 bg-white shadow-[0_8px_22px_rgba(10,132,255,0.10)]"
+                  transition={{ type: "spring", stiffness: 500, damping: 42 }}
+                />
+              )}
+              <span className={cn(
+                "relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
+                route.active ? "bg-primary text-primary-foreground" : "bg-slate-100 text-muted-foreground group-hover:bg-blue-50 group-hover:text-primary"
+              )}>
+                <route.icon className="h-[18px] w-[18px]" />
+              </span>
+              <span className="relative">{route.label}</span>
+            </Link>
+          ))}
+        </nav>
 
-      <div className="p-4 border-t">
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
-          onClick={async () => {
-            await signOut(auth);
-            clearFirebaseSession();
-            router.replace("/login");
-          }}
-        >
-          <LogOut className="w-5 h-5 mr-3" />
-          Logout
-        </Button>
+        <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-3 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+          <Button variant="ghost" className="h-11 w-full justify-start rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700" onClick={logout}>
+            <LogOut className="mr-3 h-4 w-4" />
+            Logout
+          </Button>
+        </div>
+      </aside>
+
+      <div className="fixed inset-x-3 bottom-3 z-50 rounded-2xl border border-black/[0.08] bg-white/95 p-2 shadow-[0_14px_34px_rgba(15,23,42,0.16)] backdrop-blur-xl lg:hidden">
+        <nav className="grid auto-cols-[82px] grid-flow-col gap-1 overflow-x-auto no-scrollbar">
+          {routes.map((route) => (
+            <Link
+              key={route.href}
+              href={route.href}
+              className={cn(
+                "flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold transition-colors",
+                route.active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-slate-100 hover:text-foreground"
+              )}
+            >
+              <route.icon className="h-4 w-4" />
+              <span className="max-w-full truncate">{route.label.replace(" Management", "").replace("Kitchen (KDS)", "KDS")}</span>
+            </Link>
+          ))}
+        </nav>
       </div>
-    </div>
+    </>
   );
 }

@@ -19,6 +19,7 @@ import { auth, db, ensureAuthPersistence } from "@/lib/firebase";
 import { isRestaurantAdmin, normalizeUserProfile, profileFromClaims } from "@/lib/auth-roles";
 import { authDebug, getFirebaseErrorCode, getFirebaseErrorMessage } from "@/lib/auth-debug";
 import { persistFirebaseSession } from "@/lib/auth-session";
+import { ShieldCheck, UtensilsCrossed } from "lucide-react";
 
 async function getAdminRedirect(firebaseUser: FirebaseUser, requestedNext: string | null) {
   authDebug("login profile redirect start", { uid: firebaseUser.uid, email: firebaseUser.email });
@@ -152,10 +153,21 @@ function LoginForm() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted/20 p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Zenvy Dine Admin Login</CardTitle>
+    <main className="flex min-h-screen items-center justify-center p-6">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+              <UtensilsCrossed className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-primary/80">Admin</p>
+              <CardTitle>Zenvy Dine Login</CardTitle>
+            </div>
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Access live orders, KDS, QR tables, and restaurant settings.
+          </p>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={signIn}>
@@ -173,10 +185,11 @@ function LoginForm() {
               onChange={(event) => setPassword(event.target.value)}
               required
             />
-            <Button className="w-full" type="submit" disabled={loading}>
+            <Button variant="premium" className="w-full" type="submit" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </Button>
             <Button className="w-full" type="button" variant="outline" disabled={loading} onClick={signInWithGoogle}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
               Continue with Google
             </Button>
             <Button className="w-full" type="button" variant="ghost" disabled={resetting} onClick={resetPassword}>
@@ -191,7 +204,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-muted/20" />}>
+    <Suspense fallback={<main className="min-h-screen" />}>
       <LoginForm />
     </Suspense>
   );

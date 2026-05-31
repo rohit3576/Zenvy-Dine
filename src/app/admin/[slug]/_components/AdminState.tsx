@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 
 export function AdminAlert({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
       {children}
     </div>
   );
@@ -10,7 +10,7 @@ export function AdminAlert({ children }: { children: ReactNode }) {
 
 export function AdminEmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border-2 border-dashed py-16 text-center text-muted-foreground">
+    <div className="rounded-2xl border border-dashed border-black/[0.08] bg-white px-6 py-16 text-center text-sm text-muted-foreground">
       {children}
     </div>
   );

@@ -19,10 +19,12 @@ export default async function AdminLayout({
 
   return (
     <AdminGuard slug={slug}>
-      <div className="flex min-h-screen bg-muted/20">
+      <div className="min-h-screen text-foreground lg:flex">
         <Sidebar slug={slug} />
-        <main className="flex-1 p-8 overflow-y-auto">
-          {children}
+        <main className="min-w-0 flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-7xl">
+            {children}
+          </div>
         </main>
       </div>
     </AdminGuard>

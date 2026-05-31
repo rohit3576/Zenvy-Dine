@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/firebase";
 import { persistFirebaseSession } from "@/lib/auth-session";
+import { Sparkles, UtensilsCrossed } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -56,10 +57,21 @@ export default function SignupPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted/30 p-6">
+    <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Admin Onboarding</CardTitle>
+        <CardHeader className="space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+              <UtensilsCrossed className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-primary/80">Onboarding</p>
+              <CardTitle>Admin Onboarding</CardTitle>
+            </div>
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Create the owner account for a restaurant workspace.
+          </p>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={signup}>
@@ -68,7 +80,8 @@ export default function SignupPage() {
           <Input placeholder="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} />
           <Input placeholder="Restaurant slug" value={restaurantId} onChange={(event) => setRestaurantId(event.target.value)} required />
           <Input placeholder="Onboarding code" type="password" value={onboardingCode} onChange={(event) => setOnboardingCode(event.target.value)} required />
-          <Button className="w-full" type="submit" disabled={loading || !email || !password || !restaurantId || !onboardingCode}>
+          <Button variant="premium" className="w-full" type="submit" disabled={loading || !email || !password || !restaurantId || !onboardingCode}>
+            <Sparkles className="mr-2 h-4 w-4" />
             {loading ? "Creating..." : "Create owner account"}
           </Button>
           <p className="text-center text-sm text-muted-foreground">

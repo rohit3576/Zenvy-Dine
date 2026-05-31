@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Plus, Trash2, Download, Printer, Table as TableIcon } from "lucide-react";
+import { EmptyState, PageHeader, StatusBadge } from "@/components/ui/premium";
 
 export default function TableManagementPage({ params }: { params: Promise<{ slug: string }> }) {
   const { user } = useAuth();
@@ -167,36 +168,41 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold flex items-center gap-2">
-          <TableIcon className="w-8 h-8" /> Table Management
-        </h2>
-        <div className="flex gap-2">
-          <Input 
-            placeholder="Table Number (e.g. 10)" 
-            className="w-48"
-            value={newTableNumber}
-            onChange={(e) => setNewTableNumber(e.target.value)}
-          />
-          <Button onClick={handleAddTable} disabled={isAdding}>
-            <Plus className="w-4 h-4 mr-2" /> Add Table
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="QR tables"
+        title="Table Management"
+        description="Generate polished QR entry points for each active table."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Input
+              placeholder="Table number"
+              className="sm:w-44"
+              value={newTableNumber}
+              onChange={(e) => setNewTableNumber(e.target.value)}
+            />
+            <Button variant="premium" onClick={handleAddTable} disabled={isAdding}>
+              <Plus className="mr-2 h-4 w-4" /> Add Table
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {listenerError && (
-          <div className="col-span-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className="col-span-full rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {listenerError}
           </div>
         )}
 
         {tables.map((table) => {
-          const qrUrl = `${window.location.origin}/r/${slug}/table/${table.number}`;
+          const qrUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${slug}/table/${table.number}`;
           return (
             <Card key={table.id} className="group overflow-hidden">
-              <CardHeader className="bg-muted/30 flex flex-row items-center justify-between py-3">
-                <CardTitle className="text-lg">Table {table.number}</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between border-b border-black/[0.06] bg-slate-50 py-3">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">Table {table.number}</CardTitle>
+                  <StatusBadge tone="green">Active</StatusBadge>
+                </div>
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -207,7 +213,7 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
                 </Button>
               </CardHeader>
               <CardContent className="p-6 flex flex-col items-center space-y-4">
-                <div className="bg-white p-4 rounded-xl shadow-inner border">
+                <div className="rounded-2xl border bg-white p-4 shadow-inner">
                   <QRCodeSVG 
                     id={`qr-${table.number}`}
                     value={qrUrl} 
@@ -237,8 +243,12 @@ export default function TableManagementPage({ params }: { params: Promise<{ slug
         })}
 
         {!listenerError && tables.length === 0 && (
-          <div className="col-span-full rounded-xl border-2 border-dashed py-16 text-center text-muted-foreground">
-            No tables yet. Add the first table to generate a QR code.
+          <div className="col-span-full">
+            <EmptyState
+              icon={TableIcon}
+              title="No tables yet"
+              description="Add your first table to generate a QR code for guest ordering."
+            />
           </div>
         )}
       </div>
